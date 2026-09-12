@@ -16,9 +16,16 @@ function scoped(tenantId: string) {
   return { tenantId: requireTenantId(tenantId), deletedAt: null };
 }
 
-export async function listCompanies(tenantId: string) {
+export async function listCompanies(
+  tenantId: string,
+  opts?: { q?: string; take?: number },
+) {
   return prisma.company.findMany({
-    where: scoped(tenantId),
+    where: {
+      ...scoped(tenantId),
+      ...(opts?.q ? { name: { contains: opts.q, mode: 'insensitive' } } : {}),
+    },
+    ...(opts?.take ? { take: opts.take } : {}),
     orderBy: { updatedAt: 'desc' },
     include: {
       owner: {
@@ -112,8 +119,8 @@ export async function updateCompany(
   if (input.ownerMembershipId) {
     await assertMembershipInTenant(tenantId, input.ownerMembershipId);
   }
-  return prisma.company.update({
-    where: { id },
+  const updated = await prisma.company.updateMany({
+    where: { id, tenantId, deletedAt: null },
     data: {
       ...(input.name !== undefined ? { name: input.name.trim() } : {}),
       ...(input.website !== undefined ? { website: input.website?.trim() || null } : {}),
@@ -124,14 +131,22 @@ export async function updateCompany(
         : {}),
     },
   });
+  if (updated.count === 0) {
+    throw new NotFoundError('Company not found');
+  }
+  return getCompanyOrThrow(tenantId, id);
 }
 
 export async function softDeleteCompany(tenantId: string, role: Role, id: string) {
   requireTenantId(tenantId);
   assertWrite(role);
   await getCompanyOrThrow(tenantId, id);
-  return prisma.company.update({
-    where: { id },
+  const updated = await prisma.company.updateMany({
+    where: { id, tenantId, deletedAt: null },
     data: { deletedAt: new Date() },
   });
+  if (updated.count === 0) {
+    throw new NotFoundError('Company not found');
+  }
+  return prisma.company.findFirst({ where: { id, tenantId } });
 }

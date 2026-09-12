@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import {
+  ConflictError,
   ForbiddenError,
   InviteError,
   NotFoundError,
@@ -34,7 +35,7 @@ export function apiError(err: unknown, extra?: Record<string, unknown>) {
   if (err instanceof ForbiddenError) {
     return NextResponse.json({ error: err.message }, { status: 403 });
   }
-  if (err instanceof IllegalTransitionError) {
+  if (err instanceof IllegalTransitionError || err instanceof ConflictError) {
     return NextResponse.json({ error: err.message }, { status: 409 });
   }
   if (err instanceof InviteError || err instanceof ValidationError) {

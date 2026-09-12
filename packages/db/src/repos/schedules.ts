@@ -11,6 +11,7 @@ import {
   ValidationError,
   requireTenantId,
 } from '../errors';
+import { runAtomicTransition } from './atomic-transition';
 import { assertMembershipInTenant } from './tenant-guard';
 
 export type ScheduleInput = {
@@ -91,10 +92,13 @@ export async function listSchedules(
     to?: Date;
     assigneeMembershipId?: string;
     q?: string;
+    take?: number;
   },
 ) {
   requireTenantId(tenantId);
   const selfOnly = !canManageAllSchedules(opts.role) && canWriteAnySchedule(opts.role);
+  const bounded = Boolean(opts.from && opts.to);
+  const take = opts.take ?? (bounded ? undefined : opts.q ? 20 : 100);
   return prisma.schedule.findMany({
     where: {
       tenantId,
@@ -107,6 +111,7 @@ export async function listSchedules(
         : {}),
       ...(opts.q ? { title: { contains: opts.q, mode: 'insensitive' } } : {}),
     },
+    ...(take ? { take } : {}),
     orderBy: { startAt: 'asc' },
     include,
   });
@@ -141,7 +146,7 @@ export async function getScheduleOrThrow(
   return row;
 }
 
-export async function createSchedule(
+export async function prepareCreate(
   tenantId: string,
   role: Role,
   membershipId: string,
@@ -159,19 +164,32 @@ export async function createSchedule(
     await assertMembershipInTenant(tenantId, input.assigneeMembershipId);
   }
   const warnings = await conflictWarnings(tenantId, assigneeMembershipId, start, end);
-  const schedule = await prisma.schedule.create({
+  return {
+    warnings,
     data: {
       tenantId,
       title,
-      type: input.type ?? 'booking',
+      type: input.type ?? ('booking' as const),
       startAt: start,
       endAt: end,
       assigneeMembershipId,
       notes: input.notes?.trim() || null,
     },
+  };
+}
+
+export async function createSchedule(
+  tenantId: string,
+  role: Role,
+  membershipId: string,
+  input: ScheduleInput,
+) {
+  const prepared = await prepareCreate(tenantId, role, membershipId, input);
+  const schedule = await prisma.schedule.create({
+    data: prepared.data,
     include,
   });
-  return { schedule, warnings };
+  return { schedule, warnings: prepared.warnings };
 }
 
 export async function updateSchedule(
@@ -202,8 +220,8 @@ export async function updateSchedule(
       ? assigneeMembershipId
       : current.assigneeMembershipId;
   const warnings = await conflictWarnings(tenantId, effectiveAssignee, start, end, id);
-  const schedule = await prisma.schedule.update({
-    where: { id },
+  const updated = await prisma.schedule.updateMany({
+    where: { id, tenantId },
     data: {
       ...(input.title !== undefined ? { title: input.title.trim() } : {}),
       ...(input.type !== undefined ? { type: input.type } : {}),
@@ -212,6 +230,10 @@ export async function updateSchedule(
       ...(assigneeMembershipId !== undefined ? { assigneeMembershipId } : {}),
       ...(input.notes !== undefined ? { notes: input.notes?.trim() || null } : {}),
     },
+  });
+  if (updated.count === 0) throw new NotFoundError('Schedule not found');
+  const schedule = await prisma.schedule.findFirstOrThrow({
+    where: { id, tenantId },
     include,
   });
   return { schedule, warnings };
@@ -233,28 +255,33 @@ export async function transitionSchedule(
   if (to === 'cancelled' && !extra?.cancelReason?.trim()) {
     throw new ValidationError('Cancel reason is required');
   }
-  const [schedule] = await prisma.$transaction([
-    prisma.schedule.update({
-      where: { id },
-      data: {
-        status: to,
-        ...(to === 'cancelled' ? { cancelReason: extra?.cancelReason?.trim() } : {}),
-        ...(extra?.notes !== undefined ? { notes: extra.notes?.trim() || null } : {}),
-      },
-      include,
-    }),
-    prisma.statusEvent.create({
-      data: {
-        tenantId,
-        entityType: 'schedule',
-        entityId: id,
-        fromStatus: current.status,
-        toStatus: to,
-        actorMembershipId,
-      },
-    }),
-  ]);
-  return schedule;
+  return runAtomicTransition({
+    tenantId,
+    id,
+    entityType: 'schedule',
+    toStatus: to,
+    actorMembershipId,
+    notFoundMessage: 'Schedule not found',
+    load: async (tx) => {
+      const row = await tx.schedule.findFirst({ where: { tenantId, id } });
+      if (!row) return null;
+      assertCanMutate(role, membershipId, row.assigneeMembershipId);
+      return { from: row.status };
+    },
+    assert: (from) => assertScheduleTransition(from as ScheduleStatus, to),
+    apply: (tx, from) =>
+      tx.schedule
+        .updateMany({
+          where: { id, tenantId, status: from as ScheduleStatus },
+          data: {
+            status: to,
+            ...(to === 'cancelled' ? { cancelReason: extra?.cancelReason?.trim() } : {}),
+            ...(extra?.notes !== undefined ? { notes: extra.notes?.trim() || null } : {}),
+          },
+        })
+        .then((r) => r.count),
+    reload: (tx) => tx.schedule.findFirstOrThrow({ where: { id, tenantId }, include }),
+  });
 }
 
 async function conflictWarnings(

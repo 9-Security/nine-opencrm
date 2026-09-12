@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  ConflictError,
   ForbiddenError,
   NotFoundError,
   TenantIsolationError,
@@ -82,5 +83,58 @@ describe('opportunities', () => {
         title: 'Nope',
       }),
     ).rejects.toBeInstanceOf(ForbiddenError);
+  });
+
+  it('PATCH/update does not change stage', async () => {
+    const a = await createTenantUser('admin');
+    const opp = await opportunitiesRepo.createOpportunity(a.tenant.id, 'admin', {
+      title: 'Stay lead',
+    });
+    const updated = await opportunitiesRepo.updateOpportunity(
+      a.tenant.id,
+      'admin',
+      opp.id,
+      { title: 'Renamed' },
+    );
+    expect(updated.title).toBe('Renamed');
+    expect(updated.stage).toBe('lead');
+  });
+
+  it('concurrent legal transitions keep a single winning state', async () => {
+    const a = await createTenantUser('admin');
+    const opp = await opportunitiesRepo.createOpportunity(a.tenant.id, 'admin', {
+      title: 'Race',
+    });
+    const results = await Promise.allSettled([
+      opportunitiesRepo.transitionOpportunity(
+        a.tenant.id,
+        'admin',
+        opp.id,
+        'negotiating',
+        a.membership.id,
+      ),
+      opportunitiesRepo.transitionOpportunity(
+        a.tenant.id,
+        'admin',
+        opp.id,
+        'lost',
+        a.membership.id,
+      ),
+    ]);
+    const ok = results.filter((r) => r.status === 'fulfilled');
+    const failed = results.filter((r) => r.status === 'rejected');
+    expect(ok).toHaveLength(1);
+    expect(failed).toHaveLength(1);
+    const reason = (failed[0] as PromiseRejectedResult).reason;
+    expect(
+      reason instanceof ConflictError || reason instanceof IllegalTransitionError,
+    ).toBe(true);
+    const final = await opportunitiesRepo.getOpportunityOrThrow(a.tenant.id, opp.id);
+    expect(['negotiating', 'lost']).toContain(final.stage);
+    const events = await prisma.statusEvent.findMany({
+      where: { tenantId: a.tenant.id, entityId: opp.id },
+    });
+    expect(events).toHaveLength(1);
+    expect(events[0]?.toStatus).toBe(final.stage);
   });
 });

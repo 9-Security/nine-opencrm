@@ -154,4 +154,77 @@ describe('tickets', () => {
       ticketsRepo.createTicket(sales.tenant.id, 'sales', { title: 'Nope' }),
     ).rejects.toBeInstanceOf(ForbiddenError);
   });
+
+  it('does not leak other members schedules to sales via ticket GET', async () => {
+    const admin = await createTenantUser('admin');
+    const sales = await createTenantUser('sales', { tenantId: admin.tenant.id });
+    const { schedulesRepo } = await import('@crm/db');
+    const ticket = await ticketsRepo.createTicket(admin.tenant.id, 'admin', {
+      title: 'Shared ticket',
+    });
+    const { schedule } = await schedulesRepo.createSchedule(
+      admin.tenant.id,
+      'admin',
+      admin.membership.id,
+      {
+        title: 'Admin only visit',
+        startAt: new Date('2030-06-01T10:00:00Z'),
+        endAt: new Date('2030-06-01T11:00:00Z'),
+        assigneeMembershipId: admin.membership.id,
+      },
+    );
+    await ticketsRepo.linkSchedule(admin.tenant.id, 'admin', ticket.id, schedule.id);
+    const { schedule: salesSched } = await schedulesRepo.createSchedule(
+      admin.tenant.id,
+      'sales',
+      sales.membership.id,
+      {
+        title: 'Sales visit',
+        startAt: new Date('2030-06-01T12:00:00Z'),
+        endAt: new Date('2030-06-01T13:00:00Z'),
+      },
+    );
+    await ticketsRepo.linkSchedule(admin.tenant.id, 'admin', ticket.id, salesSched.id);
+
+    const asSales = await ticketsRepo.getTicketOrThrow(
+      admin.tenant.id,
+      ticket.id,
+      'sales',
+      sales.membership.id,
+    );
+    expect(asSales.scheduleLinks.map((l) => l.schedule.title)).toEqual(['Sales visit']);
+
+    const asAdmin = await ticketsRepo.getTicketOrThrow(
+      admin.tenant.id,
+      ticket.id,
+      'admin',
+      admin.membership.id,
+    );
+    expect(asAdmin.scheduleLinks.map((l) => l.schedule.title).sort()).toEqual([
+      'Admin only visit',
+      'Sales visit',
+    ]);
+  });
+
+  it('engineering default list is unassigned plus mine', async () => {
+    const admin = await createTenantUser('admin');
+    const eng = await createTenantUser('engineering', { tenantId: admin.tenant.id });
+    await ticketsRepo.createTicket(admin.tenant.id, 'admin', {
+      title: 'Unassigned',
+    });
+    await ticketsRepo.createTicket(admin.tenant.id, 'admin', {
+      title: 'Admin owned',
+      assigneeMembershipId: admin.membership.id,
+    });
+    await ticketsRepo.createTicket(admin.tenant.id, 'admin', {
+      title: 'Eng owned',
+      assigneeMembershipId: eng.membership.id,
+    });
+    const listed = await ticketsRepo.listTickets(admin.tenant.id, {
+      engineeringDefault: true,
+      membershipId: eng.membership.id,
+    });
+    const titles = listed.map((t) => t.title).sort();
+    expect(titles).toEqual(['Eng owned', 'Unassigned']);
+  });
 });

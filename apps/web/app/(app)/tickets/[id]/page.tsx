@@ -90,9 +90,12 @@ export default function TicketDetailPage({
     },
   });
   const schedules = useQuery({
-    queryKey: ['schedules', scheduleQ],
+    queryKey: ['schedules-picker', scheduleQ],
+    enabled: scheduleQ.trim().length >= 2,
     queryFn: async () => {
-      const res = await fetch(`/api/schedules?q=${encodeURIComponent(scheduleQ)}`);
+      const res = await fetch(
+        `/api/schedules?q=${encodeURIComponent(scheduleQ.trim())}&limit=8`,
+      );
       if (!res.ok) throw new Error('failed');
       return res.json() as Promise<{
         schedules: Array<{ id: string; title: string; startAt: string }>;

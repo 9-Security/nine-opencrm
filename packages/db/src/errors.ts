@@ -33,6 +33,13 @@ export class ValidationError extends Error {
   }
 }
 
+export class ConflictError extends Error {
+  constructor(message = 'Conflict') {
+    super(message);
+    this.name = 'ConflictError';
+  }
+}
+
 /** tenantId is required — never optional — to prevent unscoped queries. */
 export function requireTenantId(tenantId: string): string {
   if (!tenantId || tenantId.trim() === '') {

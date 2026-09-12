@@ -23,7 +23,12 @@ export async function GET(req: Request, ctx: Ctx) {
   try {
     const tenant = await loadApiTenant();
     const { id } = await ctx.params;
-    const ticket = await ticketsRepo.getTicketOrThrow(tenant.tenantId, id, tenant.role);
+    const ticket = await ticketsRepo.getTicketOrThrow(
+      tenant.tenantId,
+      id,
+      tenant.role,
+      tenant.membershipId,
+    );
     logRequest({
       requestId,
       message: 'tickets.get',

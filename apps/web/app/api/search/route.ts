@@ -11,24 +11,18 @@ export async function GET(req: Request) {
       return NextResponse.json({ companies: [], contacts: [], tickets: [] });
     }
     const [companies, contacts, tickets] = await Promise.all([
-      companiesRepo.listCompanies(ctx.tenantId),
-      contactsRepo.listContacts(ctx.tenantId, { q }),
-      ticketsRepo.listTickets(ctx.tenantId, { q }),
+      companiesRepo.listCompanies(ctx.tenantId, { q, take: 8 }),
+      contactsRepo.listContacts(ctx.tenantId, { q, take: 8 }),
+      ticketsRepo.listTickets(ctx.tenantId, { q, take: 8 }),
     ]);
-    const qLower = q.toLowerCase();
     return NextResponse.json({
-      companies: companies
-        .filter((c) => c.name.toLowerCase().includes(qLower))
-        .slice(0, 8)
-        .map((c) => ({ id: c.id, name: c.name })),
-      contacts: contacts.slice(0, 8).map((c) => ({
+      companies: companies.map((c) => ({ id: c.id, name: c.name })),
+      contacts: contacts.map((c) => ({
         id: c.id,
         name: `${c.lastName}${c.firstName}`,
         company: c.company?.name ?? null,
       })),
-      tickets: tickets
-        .slice(0, 8)
-        .map((t) => ({ id: t.id, title: t.title, status: t.status })),
+      tickets: tickets.map((t) => ({ id: t.id, title: t.title, status: t.status })),
     });
   } catch (err) {
     return apiError(err, { requestId });

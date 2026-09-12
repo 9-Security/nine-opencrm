@@ -22,13 +22,17 @@ export async function GET(req: Request) {
     const url = new URL(req.url);
     const from = url.searchParams.get('from');
     const to = url.searchParams.get('to');
+    const q = url.searchParams.get('q') ?? undefined;
+    const limitRaw = url.searchParams.get('limit');
+    const take = limitRaw ? Math.min(Math.max(Number(limitRaw) || 0, 1), 50) : undefined;
     const schedules = await schedulesRepo.listSchedules(ctx.tenantId, {
       role: ctx.role,
       membershipId: ctx.membershipId,
       from: from ? new Date(from) : undefined,
       to: to ? new Date(to) : undefined,
       assigneeMembershipId: url.searchParams.get('assigneeId') ?? undefined,
-      q: url.searchParams.get('q') ?? undefined,
+      q,
+      take,
     });
     logRequest({
       requestId,

@@ -1,6 +1,7 @@
 import type { Priority, Role, TicketStatus } from '@crm/shared';
 import {
   assertTicketTransition,
+  canManageAllSchedules,
   canSeeInternalComments,
   canWriteTickets,
 } from '@crm/shared';
@@ -11,6 +12,8 @@ import {
   ValidationError,
   requireTenantId,
 } from '../errors';
+import { runAtomicTransition } from './atomic-transition';
+import * as schedulesRepo from './schedules';
 import { assertOptionalRelations, assertScheduleInTenant } from './tenant-guard';
 
 export type TicketInput = {
@@ -46,6 +49,7 @@ export async function listTickets(
     status?: TicketStatus;
     priority?: Priority;
     q?: string;
+    take?: number;
   },
 ) {
   requireTenantId(tenantId);
@@ -64,12 +68,18 @@ export async function listTickets(
           }
         : {}),
     },
+    ...(opts?.take ? { take: opts.take } : {}),
     orderBy: { updatedAt: 'desc' },
     include,
   });
 }
 
-export async function getTicket(tenantId: string, id: string, role: Role) {
+export async function getTicket(
+  tenantId: string,
+  id: string,
+  role: Role,
+  membershipId = '',
+) {
   requireTenantId(tenantId);
   const ticket = await prisma.ticket.findFirst({
     where: { tenantId, id },
@@ -83,6 +93,9 @@ export async function getTicket(tenantId: string, id: string, role: Role) {
         },
       },
       scheduleLinks: {
+        ...(!canManageAllSchedules(role)
+          ? { where: { schedule: { assigneeMembershipId: membershipId || '__none__' } } }
+          : {}),
         include: {
           schedule: {
             include: {
@@ -96,8 +109,13 @@ export async function getTicket(tenantId: string, id: string, role: Role) {
   return ticket;
 }
 
-export async function getTicketOrThrow(tenantId: string, id: string, role: Role) {
-  const ticket = await getTicket(tenantId, id, role);
+export async function getTicketOrThrow(
+  tenantId: string,
+  id: string,
+  role: Role,
+  membershipId = '',
+) {
+  const ticket = await getTicket(tenantId, id, role, membershipId);
   if (!ticket) throw new NotFoundError('Ticket not found');
   return ticket;
 }
@@ -143,8 +161,8 @@ export async function updateTicket(
     opportunityId: input.opportunityId,
     membershipId: input.assigneeMembershipId,
   });
-  return prisma.ticket.update({
-    where: { id },
+  const updated = await prisma.ticket.updateMany({
+    where: { id, tenantId },
     data: {
       ...(input.title !== undefined ? { title: input.title.trim() } : {}),
       ...(input.description !== undefined
@@ -160,8 +178,9 @@ export async function updateTicket(
         ? { assigneeMembershipId: input.assigneeMembershipId || null }
         : {}),
     },
-    include,
   });
+  if (updated.count === 0) throw new NotFoundError('Ticket not found');
+  return prisma.ticket.findFirstOrThrow({ where: { id, tenantId }, include });
 }
 
 export async function transitionTicket(
@@ -173,23 +192,27 @@ export async function transitionTicket(
 ) {
   requireTenantId(tenantId);
   assertWrite(role);
-  const current = await prisma.ticket.findFirst({ where: { tenantId, id } });
-  if (!current) throw new NotFoundError('Ticket not found');
-  assertTicketTransition(current.status, to);
-  const [row] = await prisma.$transaction([
-    prisma.ticket.update({ where: { id }, data: { status: to }, include }),
-    prisma.statusEvent.create({
-      data: {
-        tenantId,
-        entityType: 'ticket',
-        entityId: id,
-        fromStatus: current.status,
-        toStatus: to,
-        actorMembershipId,
-      },
-    }),
-  ]);
-  return row;
+  return runAtomicTransition({
+    tenantId,
+    id,
+    entityType: 'ticket',
+    toStatus: to,
+    actorMembershipId,
+    notFoundMessage: 'Ticket not found',
+    load: async (tx) => {
+      const current = await tx.ticket.findFirst({ where: { tenantId, id } });
+      return current ? { from: current.status } : null;
+    },
+    assert: (from) => assertTicketTransition(from as TicketStatus, to),
+    apply: (tx, from) =>
+      tx.ticket
+        .updateMany({
+          where: { id, tenantId, status: from as TicketStatus },
+          data: { status: to },
+        })
+        .then((r) => r.count),
+    reload: (tx) => tx.ticket.findFirstOrThrow({ where: { id, tenantId }, include }),
+  });
 }
 
 export async function addComment(
@@ -256,5 +279,39 @@ export async function unlinkSchedule(
     where: { tenantId, ticketId, scheduleId },
   });
   if (!link) throw new NotFoundError('Link not found');
-  await prisma.ticketScheduleLink.delete({ where: { id: link.id } });
+  await prisma.ticketScheduleLink.deleteMany({ where: { id: link.id, tenantId } });
+}
+
+export async function createScheduleAndLink(
+  tenantId: string,
+  role: Role,
+  membershipId: string,
+  ticketId: string,
+  input: schedulesRepo.ScheduleInput,
+) {
+  requireTenantId(tenantId);
+  assertWrite(role);
+  await getTicketOrThrow(tenantId, ticketId, role, membershipId);
+  const prepared = await schedulesRepo.prepareCreate(tenantId, role, membershipId, input);
+  return prisma.$transaction(async (tx) => {
+    const schedule = await tx.schedule.create({
+      data: prepared.data,
+      include: {
+        assignee: {
+          select: { id: true, role: true, user: { select: { name: true, email: true } } },
+        },
+      },
+    });
+    const link = await tx.ticketScheduleLink.create({
+      data: { tenantId, ticketId, scheduleId: schedule.id },
+      include: {
+        schedule: {
+          include: {
+            assignee: { select: { user: { select: { name: true, email: true } } } },
+          },
+        },
+      },
+    });
+    return { link, warnings: prepared.warnings };
+  });
 }

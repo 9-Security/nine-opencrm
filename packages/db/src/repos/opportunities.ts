@@ -12,6 +12,7 @@ import {
   requireTenantId,
 } from '../errors';
 import { money } from '../serialize';
+import { runAtomicTransition } from './atomic-transition';
 import { assertOptionalRelations } from './tenant-guard';
 
 export type OpportunityInput = {
@@ -133,8 +134,8 @@ export async function updateOpportunity(
     membershipId: input.ownerMembershipId,
   });
   const amount = parseAmount(input.amount);
-  const row = await prisma.opportunity.update({
-    where: { id },
+  const updated = await prisma.opportunity.updateMany({
+    where: { id, tenantId },
     data: {
       ...(input.title !== undefined ? { title: input.title.trim() } : {}),
       ...(amount !== undefined ? { amount } : {}),
@@ -144,6 +145,10 @@ export async function updateOpportunity(
         ? { ownerMembershipId: input.ownerMembershipId || null }
         : {}),
     },
+  });
+  if (updated.count === 0) throw new NotFoundError('Opportunity not found');
+  const row = await prisma.opportunity.findFirstOrThrow({
+    where: { id, tenantId },
     include,
   });
   return serializeOpportunity(row);
@@ -158,27 +163,34 @@ export async function transitionOpportunity(
 ) {
   requireTenantId(tenantId);
   assertWrite(role);
-  const current = await prisma.opportunity.findFirst({ where: { tenantId, id } });
-  if (!current) throw new NotFoundError('Opportunity not found');
-  assertOpportunityTransition(current.stage, to);
-  const [row] = await prisma.$transaction([
-    prisma.opportunity.update({
-      where: { id },
-      data: { stage: to },
-      include,
-    }),
-    prisma.statusEvent.create({
-      data: {
-        tenantId,
-        entityType: 'opportunity',
-        entityId: id,
-        fromStatus: current.stage,
-        toStatus: to,
-        actorMembershipId,
-      },
-    }),
-  ]);
-  return serializeOpportunity(row);
+  const row = await runAtomicTransition({
+    tenantId,
+    id,
+    entityType: 'opportunity',
+    toStatus: to,
+    actorMembershipId,
+    notFoundMessage: 'Opportunity not found',
+    load: async (tx) => {
+      const current = await tx.opportunity.findFirst({ where: { tenantId, id } });
+      return current ? { from: current.stage } : null;
+    },
+    assert: (from) => assertOpportunityTransition(from as OpportunityStage, to),
+    apply: (tx, from) =>
+      tx.opportunity
+        .updateMany({
+          where: { id, tenantId, stage: from as OpportunityStage },
+          data: { stage: to },
+        })
+        .then((r) => r.count),
+    reload: async (tx) => {
+      const next = await tx.opportunity.findFirstOrThrow({
+        where: { id, tenantId },
+        include,
+      });
+      return serializeOpportunity(next);
+    },
+  });
+  return row;
 }
 
 export async function listStatusEvents(
@@ -240,21 +252,25 @@ export async function transitionActivity(
 ) {
   requireTenantId(tenantId);
   assertWrite(role);
-  const current = await prisma.activity.findFirst({ where: { tenantId, id } });
-  if (!current) throw new NotFoundError('Activity not found');
-  assertActivityTransition(current.status, to);
-  const [row] = await prisma.$transaction([
-    prisma.activity.update({ where: { id }, data: { status: to } }),
-    prisma.statusEvent.create({
-      data: {
-        tenantId,
-        entityType: 'activity',
-        entityId: id,
-        fromStatus: current.status,
-        toStatus: to,
-        actorMembershipId,
-      },
-    }),
-  ]);
-  return row;
+  return runAtomicTransition({
+    tenantId,
+    id,
+    entityType: 'activity',
+    toStatus: to,
+    actorMembershipId,
+    notFoundMessage: 'Activity not found',
+    load: async (tx) => {
+      const row = await tx.activity.findFirst({ where: { tenantId, id } });
+      return row ? { from: row.status } : null;
+    },
+    assert: (from) => assertActivityTransition(from as 'todo' | 'done', to),
+    apply: (tx, from) =>
+      tx.activity
+        .updateMany({
+          where: { id, tenantId, status: from as 'todo' | 'done' },
+          data: { status: to },
+        })
+        .then((r) => r.count),
+    reload: (tx) => tx.activity.findFirstOrThrow({ where: { id, tenantId } }),
+  });
 }

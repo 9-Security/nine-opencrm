@@ -33,7 +33,7 @@ function assertWrite(role: Role) {
 
 export async function listContacts(
   tenantId: string,
-  opts?: { q?: string; companyId?: string },
+  opts?: { q?: string; companyId?: string; take?: number },
 ) {
   requireTenantId(tenantId);
   return prisma.contact.findMany({
@@ -50,6 +50,7 @@ export async function listContacts(
           }
         : {}),
     },
+    ...(opts?.take ? { take: opts.take } : {}),
     orderBy: { updatedAt: 'desc' },
     include,
   });
@@ -129,8 +130,8 @@ export async function updateContact(
     companyId: input.companyId,
     membershipId: input.ownerMembershipId,
   });
-  return prisma.contact.update({
-    where: { id },
+  const updated = await prisma.contact.updateMany({
+    where: { id, tenantId },
     data: {
       ...(input.firstName !== undefined ? { firstName: input.firstName.trim() } : {}),
       ...(input.lastName !== undefined ? { lastName: input.lastName.trim() } : {}),
@@ -141,13 +142,15 @@ export async function updateContact(
         ? { ownerMembershipId: input.ownerMembershipId || null }
         : {}),
     },
-    include,
   });
+  if (updated.count === 0) throw new NotFoundError('Contact not found');
+  return prisma.contact.findFirstOrThrow({ where: { id, tenantId }, include });
 }
 
 export async function deleteContact(tenantId: string, role: Role, id: string) {
   requireTenantId(tenantId);
   assertWrite(role);
   await getContactOrThrow(tenantId, id);
-  await prisma.contact.delete({ where: { id } });
+  const deleted = await prisma.contact.deleteMany({ where: { id, tenantId } });
+  if (deleted.count === 0) throw new NotFoundError('Contact not found');
 }

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { schedulesRepo, ticketsRepo } from '@crm/db';
+import { ticketsRepo } from '@crm/db';
 import { z } from 'zod';
 import { apiError, loadApiTenant } from '@/lib/api';
 import { logRequest } from '@/lib/log';
@@ -25,30 +25,27 @@ export async function POST(req: Request, ctx: Ctx) {
     const tenant = await loadApiTenant();
     const { id } = await ctx.params;
     const body = schema.parse(await req.json());
-    let scheduleId = body.scheduleId;
+    const scheduleId = body.scheduleId;
     let warnings: unknown[] = [];
+    let link;
     if (!scheduleId && body.create) {
-      const created = await schedulesRepo.createSchedule(
+      const created = await ticketsRepo.createScheduleAndLink(
         tenant.tenantId,
         tenant.role,
         tenant.membershipId,
+        id,
         body.create,
       );
-      scheduleId = created.schedule.id;
+      link = created.link;
       warnings = created.warnings;
-    }
-    if (!scheduleId) {
+    } else if (scheduleId) {
+      link = await ticketsRepo.linkSchedule(tenant.tenantId, tenant.role, id, scheduleId);
+    } else {
       return NextResponse.json(
         { error: 'scheduleId or create is required' },
         { status: 400 },
       );
     }
-    const link = await ticketsRepo.linkSchedule(
-      tenant.tenantId,
-      tenant.role,
-      id,
-      scheduleId,
-    );
     logRequest({
       requestId,
       message: 'tickets.link_schedule',
