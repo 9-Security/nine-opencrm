@@ -105,12 +105,26 @@ describe('opportunities', () => {
     const opp = await opportunitiesRepo.createOpportunity(a.tenant.id, 'admin', {
       title: 'Race',
     });
+    await opportunitiesRepo.transitionOpportunity(
+      a.tenant.id,
+      'admin',
+      opp.id,
+      'negotiating',
+      a.membership.id,
+    );
+    await opportunitiesRepo.transitionOpportunity(
+      a.tenant.id,
+      'admin',
+      opp.id,
+      'quoted',
+      a.membership.id,
+    );
     const results = await Promise.allSettled([
       opportunitiesRepo.transitionOpportunity(
         a.tenant.id,
         'admin',
         opp.id,
-        'negotiating',
+        'won',
         a.membership.id,
       ),
       opportunitiesRepo.transitionOpportunity(
@@ -130,11 +144,12 @@ describe('opportunities', () => {
       reason instanceof ConflictError || reason instanceof IllegalTransitionError,
     ).toBe(true);
     const final = await opportunitiesRepo.getOpportunityOrThrow(a.tenant.id, opp.id);
-    expect(['negotiating', 'lost']).toContain(final.stage);
+    expect(['won', 'lost']).toContain(final.stage);
     const events = await prisma.statusEvent.findMany({
       where: { tenantId: a.tenant.id, entityId: opp.id },
+      orderBy: { createdAt: 'asc' },
     });
-    expect(events).toHaveLength(1);
-    expect(events[0]?.toStatus).toBe(final.stage);
+    expect(events).toHaveLength(3);
+    expect(events.map((e) => e.toStatus)).toEqual(['negotiating', 'quoted', final.stage]);
   });
 });
