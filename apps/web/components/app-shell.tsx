@@ -127,7 +127,7 @@ export function AppShell({
           })}
         </nav>
         <div className="border-t border-white/10 p-3 text-[11px] text-slate-500">
-          雲端多租戶 · Sprint 2
+          試用版 · 歡迎回饋
         </div>
       </aside>
 

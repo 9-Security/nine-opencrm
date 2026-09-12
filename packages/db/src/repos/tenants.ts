@@ -1,6 +1,6 @@
 import { hash } from 'bcryptjs';
 import { prisma } from '../client';
-import { ForbiddenError, ValidationError } from '../errors';
+import { ConflictError, ForbiddenError, ValidationError } from '../errors';
 import { isBlockedMailHost } from '../mail-auth';
 
 function slugify(name: string): string {
@@ -63,7 +63,7 @@ export async function registerUser(params: {
   const email = params.email.trim().toLowerCase();
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) {
-    throw new ForbiddenError('Email already registered');
+    throw new ConflictError('這個 Email 已經註冊，請直接登入');
   }
   if (params.password.length < 8) {
     throw new Error('Password must be at least 8 characters');

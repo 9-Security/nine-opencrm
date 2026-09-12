@@ -114,7 +114,7 @@ export function TicketList({
           actionLabel={canWrite ? '新建工單' : undefined}
         />
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-card">
+        <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-card">
           <table className="w-full text-left text-sm">
             <thead className="bg-slate-50 text-xs uppercase text-slate-500">
               <tr>

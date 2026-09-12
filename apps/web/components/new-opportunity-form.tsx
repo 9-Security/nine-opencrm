@@ -13,9 +13,11 @@ import { Button } from '@/components/ui/button';
 import { Card, CardBody } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { usePrefillParam } from '@/lib/use-prefill';
 
 export function NewOpportunityForm() {
   const router = useRouter();
+  const companyId = usePrefillParam('companyId');
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
@@ -58,7 +60,7 @@ export function NewOpportunityForm() {
               <Label htmlFor="amount">金額</Label>
               <Input id="amount" name="amount" type="number" step="0.01" />
             </div>
-            <CompanySelect name="companyId" />
+            <CompanySelect name="companyId" defaultValue={companyId} />
             <ContactSelect name="contactId" />
             <MemberSelect name="ownerMembershipId" />
             {error ? <p className="text-sm text-red-600">{error}</p> : null}

@@ -206,8 +206,16 @@ export default function CompanyDetailPage({
       </Card>
       <div className="mt-6 grid gap-4 md:grid-cols-3">
         <Card>
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between">
             <h2 className="font-semibold">聯絡人</h2>
+            {canWrite ? (
+              <Link
+                href={`/contacts/new?companyId=${company.id}`}
+                className="text-sm font-medium text-accent hover:underline"
+              >
+                新增
+              </Link>
+            ) : null}
           </CardHeader>
           <CardBody className="space-y-2 text-sm">
             {(company.contacts ?? []).length === 0 ? (
@@ -228,8 +236,16 @@ export default function CompanyDetailPage({
           </CardBody>
         </Card>
         <Card>
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between">
             <h2 className="font-semibold">商機</h2>
+            {canWrite ? (
+              <Link
+                href={`/opportunities/new?companyId=${company.id}`}
+                className="text-sm font-medium text-accent hover:underline"
+              >
+                新增
+              </Link>
+            ) : null}
           </CardHeader>
           <CardBody className="space-y-2 text-sm">
             {(company.opportunities ?? []).length === 0 ? (
@@ -252,8 +268,16 @@ export default function CompanyDetailPage({
           </CardBody>
         </Card>
         <Card>
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between">
             <h2 className="font-semibold">工單</h2>
+            {canWrite ? (
+              <Link
+                href={`/tickets/new?companyId=${company.id}`}
+                className="text-sm font-medium text-accent hover:underline"
+              >
+                新增
+              </Link>
+            ) : null}
           </CardHeader>
           <CardBody className="space-y-2 text-sm">
             {(company.tickets ?? []).length === 0 ? (

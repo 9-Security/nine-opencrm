@@ -19,7 +19,8 @@ Sprint 0：可登入骨架、schema v1、公司 CRUD、租戶隔離測試。
 Sprint 1：聯絡人、商機狀態機、工單留言、週曆衝突警告、工單↔排程手動關聯。  
 Sprint 2：公司標籤與列表篩選、首頁待辦 inbox、報表 API、工作日與通知佔位。  
 Sprint 3：本機密碼、可選 IMAPS/POP3S 信箱認證、TOTP 兩步驟驗證。  
-Sprint 4：聯絡人活動時間線；first-factor 失敗後停止探測信箱。
+Sprint 4：聯絡人活動時間線；first-factor 失敗後停止探測信箱。  
+Sprint 5：試用版體驗——邀請複製連結、空租戶引導、從公司帶入新建。
 
 ## 目錄
 

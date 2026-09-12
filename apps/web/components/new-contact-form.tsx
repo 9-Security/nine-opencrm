@@ -8,9 +8,11 @@ import { Button } from '@/components/ui/button';
 import { Card, CardBody } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { usePrefillParam } from '@/lib/use-prefill';
 
 export function NewContactForm() {
   const router = useRouter();
+  const companyId = usePrefillParam('companyId');
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
@@ -64,7 +66,7 @@ export function NewContactForm() {
               <Label htmlFor="phone">電話</Label>
               <Input id="phone" name="phone" />
             </div>
-            <CompanySelect name="companyId" />
+            <CompanySelect name="companyId" defaultValue={companyId} />
             <MemberSelect name="ownerMembershipId" />
             {error ? <p className="text-sm text-red-600">{error}</p> : null}
             <div className="flex gap-2">

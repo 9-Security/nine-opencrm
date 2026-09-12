@@ -85,7 +85,7 @@ export default function LoginPage() {
       subtitle={
         step === 'totp'
           ? '輸入驗證器 App 的 6 位數代碼，或備用碼'
-          : '可用 CRM 密碼，或公司信箱 IMAPS / POP3S 認證'
+          : '使用 Email 與密碼登入。若管理員有開通信箱認證，也可用信箱密碼。'
       }
     >
       {step === 'password' ? (

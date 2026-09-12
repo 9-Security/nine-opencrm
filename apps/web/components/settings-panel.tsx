@@ -111,8 +111,33 @@ export function SettingsPanel() {
       return;
     }
     setInviteUrl(body.inviteUrl);
-    toast.success('已建立邀請（郵件為 stub，請複製連結）');
+    toast.success('已建立邀請，請複製連結傳給對方');
     (e.target as HTMLFormElement).reset();
+    await qc.invalidateQueries({ queryKey: ['settings'] });
+  }
+
+  async function copyInvite(url: string) {
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success('已複製邀請連結');
+    } catch {
+      toast.error('無法複製，請手動選取連結');
+    }
+  }
+
+  async function rotateInvite(inviteId: string) {
+    const res = await fetch('/api/invites/rotate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ inviteId }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      toast.error(body.error ?? '無法重新產生連結');
+      return;
+    }
+    setInviteUrl(body.inviteUrl);
+    toast.success('已產生新連結，舊連結失效');
     await qc.invalidateQueries({ queryKey: ['settings'] });
   }
 
@@ -309,27 +334,54 @@ export function SettingsPanel() {
             </div>
             <Button type="submit">送出邀請</Button>
           </form>
+          <p className="mt-3 text-xs text-slate-500">
+            目前不會寄出邀請信。請把連結傳給對方，對方用同一個 Email 註冊或登入即可加入。
+          </p>
           {inviteUrl ? (
-            <p className="mt-3 break-all rounded-lg bg-accent-50 px-3 py-2 text-sm text-accent-600">
-              邀請連結（console stub）：{inviteUrl}
-            </p>
+            <div className="mt-3 rounded-lg bg-accent-50 px-3 py-2 text-sm text-accent-700">
+              <p className="break-all">{inviteUrl}</p>
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                className="mt-2"
+                onClick={() => copyInvite(inviteUrl)}
+              >
+                複製連結
+              </Button>
+            </div>
           ) : null}
           <div className="mt-4 space-y-2">
             {invites.length === 0 ? (
               <p className="text-sm text-slate-500">尚無邀請。</p>
             ) : (
               invites.map((inv) => (
-                <div key={inv.id} className="flex items-center justify-between text-sm">
+                <div
+                  key={inv.id}
+                  className="flex items-center justify-between gap-2 text-sm"
+                >
                   <span>
                     {inv.email} · {ROLE_LABELS[inv.role]}
                   </span>
-                  <Badge>
-                    {inv.acceptedAt
-                      ? '已接受'
-                      : new Date(inv.expiresAt) < new Date()
-                        ? '已過期'
-                        : '待接受'}
-                  </Badge>
+                  <span className="flex items-center gap-2">
+                    <Badge>
+                      {inv.acceptedAt
+                        ? '已接受'
+                        : new Date(inv.expiresAt) < new Date()
+                          ? '已過期'
+                          : '待接受'}
+                    </Badge>
+                    {!inv.acceptedAt ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => rotateInvite(inv.id)}
+                      >
+                        重新產生連結
+                      </Button>
+                    ) : null}
+                  </span>
                 </div>
               ))
             )}

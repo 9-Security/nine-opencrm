@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { opportunitiesRepo, reportsRepo } from '@crm/db';
 import {
   OPPORTUNITY_STAGE_LABELS,
+  canAccessSettings,
   canWriteAnySchedule,
   canWriteCompanies,
   canWriteOpportunities,
@@ -9,6 +10,7 @@ import {
   type OpportunityStage,
 } from '@crm/shared';
 import { PageHeader } from '@/components/app-shell';
+import { GettingStarted } from '@/components/getting-started';
 import { TodayActivities } from '@/components/today-activities';
 import { Button } from '@/components/ui/button';
 import { Card, CardBody } from '@/components/ui/card';
@@ -31,8 +33,38 @@ export default async function HomePage() {
     { label: '客戶數', value: summary.companyCount, href: '/companies' },
   ];
 
+  const steps = [
+    ...(canWriteCompanies(ctx.role)
+      ? [
+          {
+            href: '/companies/new',
+            label: '新增第一間公司',
+            hint: '客戶主檔，後續都能關聯',
+          },
+        ]
+      : []),
+    ...(canWriteOpportunities(ctx.role)
+      ? [{ href: '/opportunities/new', label: '建立一筆商機', hint: '從潛在跟到成交' }]
+      : []),
+    ...(canWriteTickets(ctx.role)
+      ? [{ href: '/tickets/new', label: '開一張工單', hint: '指派、留言、關聯排程' }]
+      : []),
+    ...(canAccessSettings(ctx.role)
+      ? [
+          {
+            href: '/settings',
+            label: '邀請同事',
+            hint: '系統不會寄信，請複製邀請連結傳給對方',
+          },
+        ]
+      : []),
+  ];
+
   return (
     <div>
+      <p className="mb-4 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600">
+        這是試用版，方便收集使用回饋。目前沒有訂單／合約模組；邀請同事請到設定複製連結（不會寄信）。
+      </p>
       <PageHeader
         title={`你好，${ctx.name ?? ctx.email}`}
         description={`${ctx.tenantName} 摘要`}
@@ -73,6 +105,7 @@ export default async function HomePage() {
           </Link>
         ))}
       </div>
+      {summary.companyCount === 0 ? <GettingStarted steps={steps} /> : null}
       <TodayActivities
         activities={inbox.map((a) => ({
           ...a,

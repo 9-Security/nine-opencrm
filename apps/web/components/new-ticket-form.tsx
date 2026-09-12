@@ -17,9 +17,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { usePrefillParam } from '@/lib/use-prefill';
 
 export function NewTicketForm() {
   const router = useRouter();
+  const companyId = usePrefillParam('companyId');
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
@@ -74,7 +76,7 @@ export function NewTicketForm() {
                 ))}
               </Select>
             </div>
-            <CompanySelect name="companyId" />
+            <CompanySelect name="companyId" defaultValue={companyId} />
             <ContactSelect name="contactId" />
             <OpportunitySelect name="opportunityId" />
             <MemberSelect name="assigneeMembershipId" label="指派給" />

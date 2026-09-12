@@ -66,7 +66,7 @@ export function ContactList({ canWrite }: { canWrite: boolean }) {
           actionLabel={canWrite ? '新建聯絡人' : undefined}
         />
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-card">
+        <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-card">
           <table className="w-full text-left text-sm">
             <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
               <tr>
