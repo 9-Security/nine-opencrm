@@ -1,3 +1,6 @@
+'use client';
+
+import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
@@ -5,6 +8,50 @@ import { Select } from '@/components/ui/select';
 type Member = { id: string; name: string | null; email: string };
 type Company = { id: string; name: string };
 type Contact = { id: string; firstName: string; lastName: string };
+
+function BoundSelect({
+  name,
+  label,
+  defaultValue,
+  disabled,
+  allowEmpty = true,
+  emptyLabel = '（未指定）',
+  options,
+  loading,
+}: {
+  name: string;
+  label: string;
+  defaultValue?: string | null;
+  disabled?: boolean;
+  allowEmpty?: boolean;
+  emptyLabel?: string;
+  options: Array<{ value: string; label: string }>;
+  loading?: boolean;
+}) {
+  const [value, setValue] = useState(defaultValue ?? '');
+  useEffect(() => {
+    setValue(defaultValue ?? '');
+  }, [defaultValue]);
+
+  return (
+    <div className="space-y-1.5">
+      <Label>{label}</Label>
+      <Select
+        name={name}
+        value={value}
+        disabled={disabled || loading}
+        onChange={(e) => setValue(e.target.value)}
+      >
+        {allowEmpty ? <option value="">{loading ? '載入中…' : emptyLabel}</option> : null}
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </Select>
+    </div>
+  );
+}
 
 export function CompanySelect({
   name,
@@ -24,17 +71,14 @@ export function CompanySelect({
     },
   });
   return (
-    <div className="space-y-1.5">
-      <Label>公司</Label>
-      <Select name={name} defaultValue={defaultValue ?? ''} disabled={disabled}>
-        <option value="">（未指定）</option>
-        {(q.data?.companies ?? []).map((c) => (
-          <option key={c.id} value={c.id}>
-            {c.name}
-          </option>
-        ))}
-      </Select>
-    </div>
+    <BoundSelect
+      name={name}
+      label="公司"
+      defaultValue={defaultValue}
+      disabled={disabled}
+      loading={q.isLoading}
+      options={(q.data?.companies ?? []).map((c) => ({ value: c.id, label: c.name }))}
+    />
   );
 }
 
@@ -56,18 +100,17 @@ export function ContactSelect({
     },
   });
   return (
-    <div className="space-y-1.5">
-      <Label>聯絡人</Label>
-      <Select name={name} defaultValue={defaultValue ?? ''} disabled={disabled}>
-        <option value="">（未指定）</option>
-        {(q.data?.contacts ?? []).map((c) => (
-          <option key={c.id} value={c.id}>
-            {c.lastName}
-            {c.firstName}
-          </option>
-        ))}
-      </Select>
-    </div>
+    <BoundSelect
+      name={name}
+      label="聯絡人"
+      defaultValue={defaultValue}
+      disabled={disabled}
+      loading={q.isLoading}
+      options={(q.data?.contacts ?? []).map((c) => ({
+        value: c.id,
+        label: `${c.lastName}${c.firstName}`,
+      }))}
+    />
   );
 }
 
@@ -93,17 +136,18 @@ export function MemberSelect({
     },
   });
   return (
-    <div className="space-y-1.5">
-      <Label>{label}</Label>
-      <Select name={name} defaultValue={defaultValue ?? ''} disabled={disabled}>
-        {allowEmpty ? <option value="">（未指定）</option> : null}
-        {(q.data?.members ?? []).map((m) => (
-          <option key={m.id} value={m.id}>
-            {m.name || m.email}
-          </option>
-        ))}
-      </Select>
-    </div>
+    <BoundSelect
+      name={name}
+      label={label}
+      defaultValue={defaultValue}
+      disabled={disabled}
+      allowEmpty={allowEmpty}
+      loading={q.isLoading}
+      options={(q.data?.members ?? []).map((m) => ({
+        value: m.id,
+        label: m.name || m.email,
+      }))}
+    />
   );
 }
 
@@ -127,17 +171,17 @@ export function OpportunitySelect({
     },
   });
   return (
-    <div className="space-y-1.5">
-      <Label>商機</Label>
-      <Select name={name} defaultValue={defaultValue ?? ''} disabled={disabled}>
-        <option value="">（未指定）</option>
-        {(q.data?.opportunities ?? []).map((o) => (
-          <option key={o.id} value={o.id}>
-            {o.title}
-          </option>
-        ))}
-      </Select>
-    </div>
+    <BoundSelect
+      name={name}
+      label="商機"
+      defaultValue={defaultValue}
+      disabled={disabled}
+      loading={q.isLoading}
+      options={(q.data?.opportunities ?? []).map((o) => ({
+        value: o.id,
+        label: o.title,
+      }))}
+    />
   );
 }
 
