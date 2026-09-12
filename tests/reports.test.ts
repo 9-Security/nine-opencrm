@@ -42,4 +42,16 @@ describe('reports and activity inbox', () => {
     });
     expect(inbox.map((row) => row.title)).toEqual(['Call A']);
   });
+
+  it('dashboard todo count includes overdue items', async () => {
+    const a = await createTenantUser('admin');
+    const overdue = new Date();
+    overdue.setDate(overdue.getDate() - 2);
+    await opportunitiesRepo.createActivity(a.tenant.id, 'admin', {
+      title: 'Overdue A',
+      dueAt: overdue,
+    });
+    const dash = await reportsRepo.dashboardSummary(a.tenant.id);
+    expect(dash.todayTodos).toBeGreaterThanOrEqual(1);
+  });
 });

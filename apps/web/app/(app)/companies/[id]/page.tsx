@@ -65,6 +65,9 @@ export default function CompanyDetailPage({
           }>;
         };
         canWrite: boolean;
+        canWriteContacts?: boolean;
+        canWriteOpportunities?: boolean;
+        canWriteTickets?: boolean;
       }>;
     },
   });
@@ -77,6 +80,9 @@ export default function CompanyDetailPage({
   }
 
   const { company, canWrite } = query.data;
+  const canWriteContacts = query.data.canWriteContacts ?? canWrite;
+  const canWriteOpportunities = query.data.canWriteOpportunities ?? canWrite;
+  const canWriteTickets = query.data.canWriteTickets ?? canWrite;
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -208,7 +214,7 @@ export default function CompanyDetailPage({
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <h2 className="font-semibold">聯絡人</h2>
-            {canWrite ? (
+            {canWriteContacts ? (
               <Link
                 href={`/contacts/new?companyId=${company.id}`}
                 className="text-sm font-medium text-accent hover:underline"
@@ -238,7 +244,7 @@ export default function CompanyDetailPage({
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <h2 className="font-semibold">商機</h2>
-            {canWrite ? (
+            {canWriteOpportunities ? (
               <Link
                 href={`/opportunities/new?companyId=${company.id}`}
                 className="text-sm font-medium text-accent hover:underline"
@@ -270,7 +276,7 @@ export default function CompanyDetailPage({
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <h2 className="font-semibold">工單</h2>
-            {canWrite ? (
+            {canWriteTickets ? (
               <Link
                 href={`/tickets/new?companyId=${company.id}`}
                 className="text-sm font-medium text-accent hover:underline"

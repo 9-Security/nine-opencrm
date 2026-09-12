@@ -29,7 +29,7 @@ export default async function HomePage() {
   const cards = [
     { label: '未結工單', value: summary.openTickets, href: '/tickets' },
     { label: '本週排程', value: summary.weekSchedules, href: '/schedules' },
-    { label: '今日待辦', value: summary.todayTodos, href: '/opportunities' },
+    { label: '待辦', value: summary.todayTodos, href: '/opportunities' },
     { label: '客戶數', value: summary.companyCount, href: '/companies' },
   ];
 
@@ -54,7 +54,7 @@ export default async function HomePage() {
           {
             href: '/settings',
             label: '邀請同事',
-            hint: '系統不會寄信，請複製邀請連結傳給對方',
+            hint: '系統會寄信；必要時也可複製邀請連結',
           },
         ]
       : []),
@@ -63,7 +63,7 @@ export default async function HomePage() {
   return (
     <div>
       <p className="mb-4 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600">
-        這是試用版，方便收集使用回饋。目前沒有訂單／合約模組；邀請同事請到設定複製連結（不會寄信）。
+        這是試用版，方便收集使用回饋。目前沒有訂單／合約模組；邀請同事請到設定，系統會寄信。
       </p>
       <PageHeader
         title={`你好，${ctx.name ?? ctx.email}`}

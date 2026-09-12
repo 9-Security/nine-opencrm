@@ -20,7 +20,8 @@ Sprint 1：聯絡人、商機狀態機、工單留言、週曆衝突警告、工
 Sprint 2：公司標籤與列表篩選、首頁待辦 inbox、報表 API、工作日與通知佔位。  
 Sprint 3：本機密碼、可選 IMAPS/POP3S 信箱認證、TOTP 兩步驟驗證。  
 Sprint 4：聯絡人活動時間線；first-factor 失敗後停止探測信箱。  
-Sprint 5：試用版體驗——邀請複製連結、空租戶引導、從公司帶入新建。
+Sprint 5：試用版體驗——邀請複製連結、空租戶引導、從公司帶入新建。  
+Sprint 6：Resend 邀請信；邀請連結用 `AUTH_URL`；Cloudflare 僅用於寄信網域診斷。
 
 ## 目錄
 
@@ -84,7 +85,7 @@ npm run dev                   # http://localhost:3000
 - 跨租戶讀寫回 **404**（不回 403，避免洩漏資源存在）
 - 邀請 token 以 SHA-256 存放；單次使用、7 天過期
 - Session 只帶 `user_id`；`tenant_id` 來自 httpOnly cookie，且必須對應 active membership
-- 郵件邀請為 **console stub**（不真發信）
+- 郵件邀請走 **Resend**（`RESEND_API_KEY`）；未設定或寄送失敗時仍可複製連結
 - 排程時間衝突回 `warnings[]`，**不阻擋儲存**
 - 工單完成 **不** 自動完成關聯排程（鬆耦合；解除連結不刪實體）
 
@@ -92,7 +93,7 @@ npm run dev                   # http://localhost:3000
 
 1. 托管 Postgres（Neon / Supabase / RDS / Railway）
 2. Vercel 部署 `apps/web`（root directory = `apps/web`）
-3. 環境變數：`DATABASE_URL`、`AUTH_SECRET`、`AUTH_URL`、可選 `SENTRY_DSN`
+3. 環境變數：`DATABASE_URL`、`AUTH_SECRET`、`AUTH_URL`、可選 `RESEND_API_KEY` / `RESEND_FROM`、可選 `SENTRY_DSN`
 4. Release 步驟：`npm run db:migrate`
 5. Seed **不要**在 production 跑
 
@@ -100,4 +101,4 @@ Sentry：有 DSN 才初始化；request log 含 `request_id` / `tenant_id` / `us
 
 ## Sprint 1 範圍外
 
-真發信、計費、檔案上傳、自訂報表／CSV、GraphQL、K8s、原生 App。
+計費、檔案上傳、自訂報表／CSV、GraphQL、K8s、原生 App。

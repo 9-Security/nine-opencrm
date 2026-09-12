@@ -3,7 +3,12 @@ import { companiesRepo } from '@crm/db';
 import { z } from 'zod';
 import { apiError, loadApiTenant } from '@/lib/api';
 import { logRequest } from '@/lib/log';
-import { canWriteCompanies } from '@crm/shared';
+import {
+  canWriteCompanies,
+  canWriteContacts,
+  canWriteOpportunities,
+  canWriteTickets,
+} from '@crm/shared';
 
 const patchSchema = z.object({
   name: z.string().min(1).optional(),
@@ -28,7 +33,13 @@ export async function GET(req: Request, ctx: Ctx) {
       tenant_id: tenant.tenantId,
       user_id: tenant.userId,
     });
-    return NextResponse.json({ company, canWrite: canWriteCompanies(tenant.role) });
+    return NextResponse.json({
+      company,
+      canWrite: canWriteCompanies(tenant.role),
+      canWriteContacts: canWriteContacts(tenant.role),
+      canWriteOpportunities: canWriteOpportunities(tenant.role),
+      canWriteTickets: canWriteTickets(tenant.role),
+    });
   } catch (err) {
     return apiError(err, { requestId });
   }

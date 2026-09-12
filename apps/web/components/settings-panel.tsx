@@ -111,7 +111,11 @@ export function SettingsPanel() {
       return;
     }
     setInviteUrl(body.inviteUrl);
-    toast.success('已建立邀請，請複製連結傳給對方');
+    toast.success(
+      body.emailed
+        ? '已寄出邀請信，也可複製連結備用'
+        : '邀請已建立。信件未寄出時請複製連結傳給對方',
+    );
     (e.target as HTMLFormElement).reset();
     await qc.invalidateQueries({ queryKey: ['settings'] });
   }
@@ -137,7 +141,11 @@ export function SettingsPanel() {
       return;
     }
     setInviteUrl(body.inviteUrl);
-    toast.success('已產生新連結，舊連結失效');
+    toast.success(
+      body.emailed
+        ? '已寄出新邀請信，舊連結失效'
+        : '已產生新連結（舊連結失效），請複製後傳給對方',
+    );
     await qc.invalidateQueries({ queryKey: ['settings'] });
   }
 
@@ -335,7 +343,8 @@ export function SettingsPanel() {
             <Button type="submit">送出邀請</Button>
           </form>
           <p className="mt-3 text-xs text-slate-500">
-            目前不會寄出邀請信。請把連結傳給對方，對方用同一個 Email 註冊或登入即可加入。
+            系統會寄邀請信；對方須用同一個 Email
+            註冊或登入。若信件未送達，請複製連結傳給對方。
           </p>
           {inviteUrl ? (
             <div className="mt-3 rounded-lg bg-accent-50 px-3 py-2 text-sm text-accent-700">

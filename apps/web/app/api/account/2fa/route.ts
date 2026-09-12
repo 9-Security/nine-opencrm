@@ -31,7 +31,9 @@ export async function POST(req: Request) {
   try {
     const ctx = await loadApiTenant();
     const body = startSchema.parse(await readJson(req));
-    await authRepo.verifyCurrentTwoFactorIfEnabled(ctx.userId, body.currentCode);
+    await authRepo.verifyCurrentTwoFactorIfEnabled(ctx.userId, body.currentCode, {
+      consumeBackup: false,
+    });
     const started = authRepo.beginTotpEnrollment(ctx.email);
     await setTotpEnrollCookie(started.secret);
     const qrDataUrl = await QRCode.toDataURL(started.otpauthUrl, {

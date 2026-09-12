@@ -264,6 +264,28 @@ describe('2FA enrollment and tenant require2fa', () => {
     expect(codes.length).toBeGreaterThan(0);
   });
 
+  it('can confirm a re-enroll with the same backup code used to start it', async () => {
+    const a = await createTenantUser('admin');
+    const first = generateTotpSecret(a.user.email);
+    const backups = await authRepo.confirmTotpEnrollment(
+      a.user.id,
+      first.secret,
+      currentCode(first.secret),
+    );
+    const backup = backups[0]!;
+    await authRepo.verifyCurrentTwoFactorIfEnabled(a.user.id, backup, {
+      consumeBackup: false,
+    });
+    const next = generateTotpSecret(a.user.email);
+    const more = await authRepo.confirmTotpEnrollment(
+      a.user.id,
+      next.secret,
+      currentCode(next.secret),
+      backup,
+    );
+    expect(more.length).toBeGreaterThan(0);
+  });
+
   it('rejects private mail hosts when saving tenant settings', async () => {
     const a = await createTenantUser('admin');
     await expect(

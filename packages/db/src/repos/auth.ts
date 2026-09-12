@@ -257,6 +257,7 @@ export function beginTotpEnrollment(email: string) {
 export async function verifyCurrentTwoFactorIfEnabled(
   userId: string,
   code: string | undefined,
+  opts?: { consumeBackup?: boolean },
 ) {
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user?.totpEnabled) return;
@@ -269,6 +270,7 @@ export async function verifyCurrentTwoFactorIfEnabled(
   if (!remaining) {
     throw new ValidationError('Invalid authentication code');
   }
+  if (opts?.consumeBackup === false) return;
   await prisma.user.update({
     where: { id: userId },
     data: { totpBackupHashes: remaining },

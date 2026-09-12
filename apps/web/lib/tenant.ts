@@ -87,7 +87,7 @@ export async function getTenantContext(): Promise<
       role: selected.role,
       workdays: tenantsRepo.parseWorkdays(row.tenant.workdays),
       totpEnabled: authStatus.totpEnabled,
-      require2fa: authStatus.require2fa,
+      require2fa: row.tenant.require2fa,
       memberships,
     },
   };
