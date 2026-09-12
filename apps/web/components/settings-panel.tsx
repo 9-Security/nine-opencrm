@@ -250,7 +250,6 @@ export function SettingsPanel() {
               儲存登入設定
             </Button>
           </form>
-          <p className="mt-4 text-xs text-slate-400">方案資訊（佔位）— MVP 不計費</p>
         </CardBody>
       </Card>
 
