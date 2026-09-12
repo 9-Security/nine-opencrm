@@ -15,6 +15,7 @@ export type TenantContext = {
   tenantSlug: string;
   membershipId: string;
   role: Role;
+  workdays: number[];
   memberships: Array<{
     id: string;
     tenantId: string;
@@ -81,6 +82,7 @@ export async function getTenantContext(): Promise<
       tenantSlug: row.tenant.slug,
       membershipId: selected.id,
       role: selected.role,
+      workdays: tenantsRepo.parseWorkdays(row.tenant.workdays),
       memberships,
     },
   };

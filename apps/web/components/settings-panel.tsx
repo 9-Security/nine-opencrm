@@ -27,6 +27,16 @@ type Invite = {
   createdAt: string;
 };
 
+const WORKDAYS = [
+  { value: 1, label: '一' },
+  { value: 2, label: '二' },
+  { value: 3, label: '三' },
+  { value: 4, label: '四' },
+  { value: 5, label: '五' },
+  { value: 6, label: '六' },
+  { value: 0, label: '日' },
+];
+
 export function SettingsPanel() {
   const qc = useQueryClient();
   const [inviteUrl, setInviteUrl] = useState<string | null>(null);
@@ -37,7 +47,7 @@ export function SettingsPanel() {
       const res = await fetch('/api/tenants');
       if (!res.ok) throw new Error('failed');
       return res.json() as Promise<{
-        tenant: { name: string; timezone: string };
+        tenant: { name: string; timezone: string; workdays: number[] };
         members: Member[];
         invites: Invite[];
       }>;
@@ -53,6 +63,7 @@ export function SettingsPanel() {
       body: JSON.stringify({
         name: form.get('name'),
         timezone: form.get('timezone'),
+        workdays: Array.from(form.getAll('workdays')).map((v) => Number(v)),
       }),
     });
     if (!res.ok) {
@@ -127,6 +138,22 @@ export function SettingsPanel() {
                 required
               />
             </div>
+            <fieldset className="space-y-1.5">
+              <legend className="text-sm font-medium">工作日</legend>
+              <div className="flex flex-wrap gap-3 text-sm">
+                {WORKDAYS.map((d) => (
+                  <label key={d.value} className="flex items-center gap-1.5">
+                    <input
+                      type="checkbox"
+                      name="workdays"
+                      value={d.value}
+                      defaultChecked={tenant.workdays.includes(d.value)}
+                    />
+                    {d.label}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
             <Button type="submit" className="w-fit">
               儲存
             </Button>

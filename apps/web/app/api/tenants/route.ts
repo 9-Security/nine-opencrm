@@ -11,6 +11,7 @@ const createSchema = z.object({ name: z.string().min(1) });
 const patchSchema = z.object({
   name: z.string().min(1).optional(),
   timezone: z.string().min(1).optional(),
+  workdays: z.array(z.number().int().min(0).max(6)).min(1).max(7).optional(),
 });
 
 export async function GET(req: Request) {
@@ -32,7 +33,12 @@ export async function GET(req: Request) {
       user_id: ctx.userId,
     });
     return NextResponse.json({
-      tenant: { name: tenant.name, timezone: tenant.timezone, slug: tenant.slug },
+      tenant: {
+        name: tenant.name,
+        timezone: tenant.timezone,
+        slug: tenant.slug,
+        workdays: tenantsRepo.parseWorkdays(tenant.workdays),
+      },
       members,
       invites,
     });
@@ -77,7 +83,10 @@ export async function PATCH(req: Request) {
       throw new ForbiddenError('Admin only');
     }
     const body = patchSchema.parse(await req.json());
-    const tenant = await tenantsRepo.updateTenantSettings(ctx.tenantId, body);
+    const tenant = await tenantsRepo.updateTenantSettings(ctx.tenantId, {
+      ...body,
+      workdays: body.workdays ? tenantsRepo.parseWorkdays(body.workdays) : undefined,
+    });
     return NextResponse.json({ tenant });
   } catch (err) {
     if (err instanceof z.ZodError) {

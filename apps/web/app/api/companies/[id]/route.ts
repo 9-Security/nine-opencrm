@@ -11,6 +11,7 @@ const patchSchema = z.object({
   phone: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
   ownerMembershipId: z.string().optional().nullable(),
+  tags: z.array(z.string()).optional(),
 });
 
 type Ctx = { params: Promise<{ id: string }> };

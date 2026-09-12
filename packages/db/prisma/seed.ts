@@ -67,6 +67,8 @@ async function main() {
   const tenantIds = { in: [acme.id, beta.id] };
   await prisma.ticketScheduleLink.deleteMany({ where: { tenantId: tenantIds } });
   await prisma.statusEvent.deleteMany({ where: { tenantId: tenantIds } });
+  await prisma.tagging.deleteMany({ where: { tenantId: tenantIds } });
+  await prisma.tag.deleteMany({ where: { tenantId: tenantIds } });
   await prisma.activity.deleteMany({ where: { tenantId: tenantIds } });
   await prisma.opportunity.deleteMany({ where: { tenantId: tenantIds } });
   await prisma.ticketComment.deleteMany({ where: { tenantId: tenantIds } });
@@ -84,6 +86,28 @@ async function main() {
       notes: '種子客戶（Acme）',
       ownerMembershipId: acmeAdmin.id,
     },
+  });
+  const vip = await prisma.tag.create({
+    data: { tenantId: acme.id, name: 'VIP' },
+  });
+  const northTag = await prisma.tag.create({
+    data: { tenantId: acme.id, name: '北區' },
+  });
+  await prisma.tagging.createMany({
+    data: [
+      {
+        tenantId: acme.id,
+        tagId: vip.id,
+        entityType: 'company',
+        entityId: north.id,
+      },
+      {
+        tenantId: acme.id,
+        tagId: northTag.id,
+        entityType: 'company',
+        entityId: north.id,
+      },
+    ],
   });
   await prisma.company.create({
     data: {

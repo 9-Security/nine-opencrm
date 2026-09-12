@@ -104,10 +104,23 @@ export async function updateMemberRole(
 
 export async function updateTenantSettings(
   tenantId: string,
-  data: { name?: string; timezone?: string },
+  data: { name?: string; timezone?: string; workdays?: number[] },
 ) {
   return prisma.tenant.update({
     where: { id: tenantId },
-    data,
+    data: {
+      ...(data.name !== undefined ? { name: data.name.trim() } : {}),
+      ...(data.timezone !== undefined ? { timezone: data.timezone.trim() } : {}),
+      ...(data.workdays !== undefined ? { workdays: data.workdays } : {}),
+    },
   });
+}
+
+export function parseWorkdays(value: unknown): number[] {
+  if (!Array.isArray(value)) return [1, 2, 3, 4, 5];
+  const days = value
+    .map((n) => Number(n))
+    .filter((n) => Number.isInteger(n) && n >= 0 && n <= 6);
+  const unique = [...new Set(days)].sort((a, b) => a - b);
+  return unique.length > 0 ? unique : [1, 2, 3, 4, 5];
 }

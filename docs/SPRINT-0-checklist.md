@@ -109,7 +109,7 @@
 
 ## I. Sprint 1 預告（方便銜接）
 
-見 [SPRINT-1.md](./SPRINT-1.md)。  
+見 [SPRINT-1.md](./SPRINT-1.md)、[SPRINT-2.md](./SPRINT-2.md)。  
 
 ---
 

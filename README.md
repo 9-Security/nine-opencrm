@@ -16,7 +16,8 @@
 產品約束：僅雲端 SaaS，不上 K8s、不做 GraphQL、不提供 on-prem 安裝包。
 
 Sprint 0：可登入骨架、schema v1、公司 CRUD、租戶隔離測試。  
-Sprint 1：聯絡人、商機狀態機、工單留言、週曆衝突警告、工單↔排程手動關聯。
+Sprint 1：聯絡人、商機狀態機、工單留言、週曆衝突警告、工單↔排程手動關聯。  
+Sprint 2：公司標籤與列表篩選、首頁待辦 inbox、報表 API、工作日與通知佔位。
 
 ## 目錄
 
@@ -25,7 +26,7 @@ apps/web          Next.js UI + REST
 packages/db       Prisma schema / client / tenant-scoped repos
 packages/shared   role / status / stage / priority / 狀態機
 tests             租戶隔離、邀請、狀態機（進 CI）
-docs              ADR-001 / IA / Sprint 0 清單
+docs              ADR-001 / IA / Sprint 清單
 ```
 
 ## 本機啟動

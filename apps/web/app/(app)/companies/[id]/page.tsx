@@ -44,6 +44,7 @@ export default function CompanyDetailPage({
           website: string | null;
           phone: string | null;
           notes: string | null;
+          tags: string[];
           contacts: Array<{
             id: string;
             firstName: string;
@@ -90,6 +91,10 @@ export default function CompanyDetailPage({
         website: form.get('website'),
         phone: form.get('phone'),
         notes: form.get('notes'),
+        tags: String(form.get('tags') ?? '')
+          .split(/[,，]/)
+          .map((t) => t.trim())
+          .filter(Boolean),
       }),
     });
     const body = await res.json().catch(() => ({}));
@@ -100,6 +105,7 @@ export default function CompanyDetailPage({
     }
     await qc.invalidateQueries({ queryKey: ['company', id] });
     await qc.invalidateQueries({ queryKey: ['companies'] });
+    await qc.invalidateQueries({ queryKey: ['tags'] });
     router.refresh();
   }
 
@@ -148,6 +154,16 @@ export default function CompanyDetailPage({
                 name="phone"
                 defaultValue={company.phone ?? ''}
                 disabled={!canWrite}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="tags">標籤</Label>
+              <Input
+                id="tags"
+                name="tags"
+                defaultValue={(company.tags ?? []).join(', ')}
+                disabled={!canWrite}
+                placeholder="VIP, 北區（逗號分隔）"
               />
             </div>
             <div className="space-y-1.5">

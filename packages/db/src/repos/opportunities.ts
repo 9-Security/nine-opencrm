@@ -208,6 +208,29 @@ export async function listStatusEvents(
   });
 }
 
+export async function listActivities(
+  tenantId: string,
+  opts?: { inbox?: boolean; status?: 'todo' | 'done'; take?: number },
+) {
+  requireTenantId(tenantId);
+  const now = new Date();
+  const endOfDay = new Date(now);
+  endOfDay.setHours(23, 59, 59, 999);
+  return prisma.activity.findMany({
+    where: {
+      tenantId,
+      ...(opts?.status ? { status: opts.status } : {}),
+      ...(opts?.inbox ? { status: 'todo', dueAt: { not: null, lte: endOfDay } } : {}),
+    },
+    ...(opts?.take ? { take: opts.take } : {}),
+    orderBy: [{ dueAt: 'asc' }, { createdAt: 'desc' }],
+    include: {
+      company: { select: { id: true, name: true } },
+      opportunity: { select: { id: true, title: true } },
+    },
+  });
+}
+
 export async function createActivity(
   tenantId: string,
   role: Role,

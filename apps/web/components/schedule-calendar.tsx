@@ -45,7 +45,13 @@ const TYPE_BAR: Record<ScheduleType, string> = {
   booking: 'bg-violet-500',
 };
 
-export function ScheduleCalendar({ canWrite }: { canWrite: boolean }) {
+export function ScheduleCalendar({
+  canWrite,
+  workdays,
+}: {
+  canWrite: boolean;
+  workdays: number[];
+}) {
   const [view, setView] = useState<'week' | 'list'>('week');
   const [cursor, setCursor] = useState(() => startOfWeek(new Date()));
   const from = cursor;
@@ -196,7 +202,11 @@ export function ScheduleCalendar({ canWrite }: { canWrite: boolean }) {
           {days.map((day, i) => (
             <div
               key={day.toISOString()}
-              className="min-h-[220px] rounded-2xl bg-slate-100/80 p-2"
+              className={
+                workdays.includes(day.getDay())
+                  ? 'min-h-[220px] rounded-2xl bg-slate-100/80 p-2'
+                  : 'min-h-[220px] rounded-2xl bg-slate-50 p-2 opacity-60'
+              }
             >
               <div className="mb-2 text-xs font-medium text-slate-600">
                 {day.toLocaleDateString(undefined, {

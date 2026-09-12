@@ -1,12 +1,14 @@
 'use client';
 
 import Link from 'next/link';
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { PageHeader } from '@/components/app-shell';
 import { CustomersTabs } from '@/components/customers-tabs';
 import { EmptyState } from '@/components/empty-state';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
 type Row = {
   id: string;
@@ -18,10 +20,12 @@ type Row = {
 };
 
 export function ContactList({ canWrite }: { canWrite: boolean }) {
+  const [q, setQ] = useState('');
   const query = useQuery({
-    queryKey: ['contacts'],
+    queryKey: ['contacts', q],
     queryFn: async () => {
-      const res = await fetch('/api/contacts');
+      const sp = q.trim() ? `?q=${encodeURIComponent(q.trim())}` : '';
+      const res = await fetch(`/api/contacts${sp}`);
       if (!res.ok) throw new Error('failed');
       return res.json() as Promise<{ contacts: Row[] }>;
     },
@@ -44,6 +48,14 @@ export function ContactList({ canWrite }: { canWrite: boolean }) {
         }
       />
       <CustomersTabs active="contacts" />
+      <div className="mb-4">
+        <Input
+          className="max-w-xs"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="搜尋姓名或 Email"
+        />
+      </div>
       {query.isLoading ? (
         <p className="text-sm text-slate-500">載入中…</p>
       ) : data.length === 0 ? (

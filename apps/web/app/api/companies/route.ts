@@ -17,7 +17,12 @@ export async function GET(req: Request) {
   const requestId = req.headers.get('x-request-id') ?? crypto.randomUUID();
   try {
     const ctx = await loadApiTenant();
-    const companies = await companiesRepo.listCompanies(ctx.tenantId);
+    const url = new URL(req.url);
+    const companies = await companiesRepo.listCompanies(ctx.tenantId, {
+      q: url.searchParams.get('q') ?? undefined,
+      tag: url.searchParams.get('tag') ?? undefined,
+      ownerMembershipId: url.searchParams.get('ownerId') ?? undefined,
+    });
     logRequest({
       requestId,
       message: 'companies.list',

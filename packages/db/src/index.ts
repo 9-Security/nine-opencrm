@@ -9,5 +9,6 @@ export * as schedulesRepo from './repos/schedules';
 export * as invitesRepo from './repos/invites';
 export * as tenantsRepo from './repos/tenants';
 export * as reportsRepo from './repos/reports';
+export * as tagsRepo from './repos/tags';
 export * as listsRepo from './repos/lists';
 export * from './repos/tenant-guard';

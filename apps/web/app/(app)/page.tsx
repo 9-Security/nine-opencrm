@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { reportsRepo } from '@crm/db';
+import { opportunitiesRepo, reportsRepo } from '@crm/db';
 import {
   OPPORTUNITY_STAGE_LABELS,
   canWriteAnySchedule,
@@ -9,13 +9,17 @@ import {
   type OpportunityStage,
 } from '@crm/shared';
 import { PageHeader } from '@/components/app-shell';
+import { TodayActivities } from '@/components/today-activities';
 import { Button } from '@/components/ui/button';
 import { Card, CardBody } from '@/components/ui/card';
 import { requireTenant } from '@/lib/tenant';
 
 export default async function HomePage() {
   const ctx = await requireTenant();
-  const summary = await reportsRepo.dashboardSummary(ctx.tenantId);
+  const [summary, inbox] = await Promise.all([
+    reportsRepo.dashboardSummary(ctx.tenantId),
+    opportunitiesRepo.listActivities(ctx.tenantId, { inbox: true, take: 8 }),
+  ]);
   const funnel = Object.fromEntries(
     summary.funnel.map((row) => [row.stage, row._count._all]),
   ) as Partial<Record<OpportunityStage, number>>;
@@ -69,6 +73,13 @@ export default async function HomePage() {
           </Link>
         ))}
       </div>
+      <TodayActivities
+        activities={inbox.map((a) => ({
+          ...a,
+          dueAt: a.dueAt ? a.dueAt.toISOString() : null,
+        }))}
+        canWrite={canWriteOpportunities(ctx.role)}
+      />
       <Card className="mt-6">
         <CardBody>
           <h2 className="text-sm font-semibold text-slate-800">商機漏斗摘要</h2>
