@@ -14,6 +14,14 @@ import {
   mailAuthenticator,
   type MailTarget,
 } from '../mail-auth';
+import {
+  clearRateLimit,
+  FIRST_FACTOR_LIMIT,
+  FIRST_FACTOR_WINDOW_MS,
+  peekRateLimit,
+  rateLimitKey,
+  recordRateLimitHit,
+} from '../rate-limit';
 import { decryptSecret, encryptSecret } from '../secret-box';
 import {
   consumeBackupCode,
@@ -60,6 +68,9 @@ function tenantTargets(tenant: {
 export async function verifyFirstFactor(email: string, password: string) {
   const normalized = email.trim().toLowerCase();
   if (!normalized || !password) return null;
+  const limitKey = rateLimitKey(['verify-first-factor', normalized]);
+  const limited = !peekRateLimit(limitKey, FIRST_FACTOR_LIMIT);
+
   const user = await prisma.user.findUnique({
     where: { email: normalized },
     include: {
@@ -82,13 +93,17 @@ export async function verifyFirstFactor(email: string, password: string) {
   });
   if (!user) {
     await compare(password, UNKNOWN_USER_HASH);
+    if (!limited) recordRateLimitHit(limitKey, FIRST_FACTOR_WINDOW_MS);
     return null;
   }
 
   const passwordOk = await compare(password, user.passwordHash);
   if (passwordOk) {
+    clearRateLimit(limitKey);
     return { user, firstFactor: 'password' as const };
   }
+
+  if (limited) return null;
 
   const targets = filterMailTargets([
     ...envMailTargets(),
@@ -102,12 +117,14 @@ export async function verifyFirstFactor(email: string, password: string) {
       password,
     });
     if (ok) {
+      clearRateLimit(limitKey);
       return {
         user,
         firstFactor: (target.protocol === 'imap' ? 'imap' : 'pop3') as FirstFactor,
       };
     }
   }
+  recordRateLimitHit(limitKey, FIRST_FACTOR_WINDOW_MS);
   return null;
 }
 

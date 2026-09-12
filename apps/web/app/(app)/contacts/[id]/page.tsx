@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { FormEvent, use, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import { PageHeader } from '@/components/app-shell';
 import { CompanySelect, MemberSelect, emptyToNull } from '@/components/entity-selects';
 import { StatusBadge } from '@/components/status-badge';
@@ -11,9 +12,11 @@ import { Card, CardBody, CardHeader } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
+  ACTIVITY_STATUS_LABELS,
   OPPORTUNITY_STAGE_LABELS,
   PRIORITY_LABELS,
   TICKET_STATUS_LABELS,
+  type ActivityStatus,
   type OpportunityStage,
   type Priority,
   type TicketStatus,
@@ -39,6 +42,12 @@ type ContactPayload = {
       title: string;
       status: TicketStatus;
       priority: Priority;
+    }>;
+    activities: Array<{
+      id: string;
+      title: string;
+      status: ActivityStatus;
+      dueAt: string | null;
     }>;
   };
   canWrite: boolean;
@@ -111,6 +120,38 @@ export default function ContactDetailPage({
       return;
     }
     window.location.href = '/contacts';
+  }
+
+  async function addActivity(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const form = new FormData(e.currentTarget);
+    const res = await fetch(`/api/contacts/${id}/activities`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: form.get('title'),
+        dueAt: emptyToNull(form.get('dueAt')),
+      }),
+    });
+    if (!res.ok) {
+      toast.error('無法新增活動');
+      return;
+    }
+    (e.target as HTMLFormElement).reset();
+    await qc.invalidateQueries({ queryKey: ['contact', id] });
+  }
+
+  async function toggleActivity(activityId: string, to: ActivityStatus) {
+    const res = await fetch(`/api/activities/${activityId}/transition`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ to }),
+    });
+    if (!res.ok) {
+      toast.error('無法更新活動');
+      return;
+    }
+    await qc.invalidateQueries({ queryKey: ['contact', id] });
   }
 
   return (
@@ -256,6 +297,60 @@ export default function ContactDetailPage({
           </CardBody>
         </Card>
       </div>
+
+      <Card className="max-w-xl">
+        <CardHeader>
+          <h2 className="font-semibold">活動時間線</h2>
+        </CardHeader>
+        <CardBody className="space-y-4">
+          {canWrite ? (
+            <form onSubmit={addActivity} className="flex flex-wrap items-end gap-2">
+              <div className="space-y-1.5">
+                <Label>待辦</Label>
+                <Input name="title" required placeholder="跟進電話…" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>到期</Label>
+                <Input name="dueAt" type="datetime-local" />
+              </div>
+              <Button type="submit" size="sm">
+                新增
+              </Button>
+            </form>
+          ) : null}
+          {contact.activities.length === 0 ? (
+            <p className="text-sm text-slate-500">尚無活動</p>
+          ) : (
+            <ul className="space-y-2 text-sm">
+              {contact.activities.map((a) => (
+                <li
+                  key={a.id}
+                  className="flex items-center justify-between rounded-lg border border-slate-100 px-3 py-2"
+                >
+                  <div>
+                    <div className="font-medium">{a.title}</div>
+                    <div className="text-xs text-slate-500">
+                      {a.dueAt ? new Date(a.dueAt).toLocaleString() : '無到期日'}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={!canWrite}
+                    onClick={() =>
+                      toggleActivity(a.id, a.status === 'todo' ? 'done' : 'todo')
+                    }
+                  >
+                    <StatusBadge
+                      value={a.status}
+                      label={ACTIVITY_STATUS_LABELS[a.status]}
+                    />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardBody>
+      </Card>
     </div>
   );
 }

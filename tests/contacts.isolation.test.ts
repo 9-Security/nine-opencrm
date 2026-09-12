@@ -57,4 +57,26 @@ describe('contact tenant isolation', () => {
       }),
     ).rejects.toBeInstanceOf(ForbiddenError);
   });
+
+  it('lists contact-scoped activities and rejects cross-tenant links', async () => {
+    const a = await createTenantUser('admin');
+    const b = await createTenantUser('admin');
+    const contact = await contactsRepo.createContact(a.tenant.id, 'admin', {
+      firstName: 'Ada',
+      lastName: 'Lin',
+    });
+    const { opportunitiesRepo } = await import('@crm/db');
+    await opportunitiesRepo.createActivity(a.tenant.id, 'admin', {
+      title: 'Follow up',
+      contactId: contact.id,
+    });
+    const loaded = await contactsRepo.getContactOrThrow(a.tenant.id, contact.id);
+    expect(loaded.activities.map((row) => row.title)).toContain('Follow up');
+    await expect(
+      opportunitiesRepo.createActivity(b.tenant.id, 'admin', {
+        title: 'Hacked',
+        contactId: contact.id,
+      }),
+    ).rejects.toBeInstanceOf(TenantIsolationError);
+  });
 });

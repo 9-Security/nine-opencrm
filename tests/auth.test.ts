@@ -90,6 +90,36 @@ describe('mail + 2FA login', () => {
     expect(called).toBe(false);
   });
 
+  it('stops probing mail after repeated first-factor failures', async () => {
+    const a = await createTenantUser('admin');
+    await prisma.tenant.update({
+      where: { id: a.tenant.id },
+      data: {
+        mailAuthEnabled: true,
+        mailImapHost: 'mail.example.test',
+        mailImapPort: 993,
+      },
+    });
+    let called = 0;
+    setMailAuthenticator(async () => {
+      called += 1;
+      return false;
+    });
+    for (let i = 0; i < FIRST_FACTOR_LIMIT; i += 1) {
+      await expect(
+        authRepo.verifyFirstFactor(a.user.email, 'MailboxPass!'),
+      ).resolves.toBeNull();
+    }
+    const probed = called;
+    expect(probed).toBe(FIRST_FACTOR_LIMIT);
+    await expect(
+      authRepo.verifyFirstFactor(a.user.email, 'MailboxPass!'),
+    ).resolves.toBeNull();
+    expect(called).toBe(probed);
+    const recovered = await authRepo.verifyFirstFactor(a.user.email, 'Password123!');
+    expect(recovered?.firstFactor).toBe('password');
+  });
+
   it('requires TOTP after first factor when 2FA is enabled', async () => {
     const a = await createTenantUser('admin');
     const { secret } = generateTotpSecret(a.user.email);
