@@ -35,9 +35,32 @@ export async function getCompany(tenantId: string, id: string) {
       owner: {
         select: { id: true, role: true, user: { select: { name: true, email: true } } },
       },
+      contacts: {
+        orderBy: { updatedAt: 'desc' },
+        take: 20,
+        select: { id: true, firstName: true, lastName: true, email: true, phone: true },
+      },
+      opportunities: {
+        orderBy: { updatedAt: 'desc' },
+        take: 20,
+        select: { id: true, title: true, stage: true, amount: true },
+      },
+      tickets: {
+        orderBy: { updatedAt: 'desc' },
+        take: 20,
+        select: { id: true, title: true, status: true, priority: true },
+      },
     },
   });
-  return company;
+  return company
+    ? {
+        ...company,
+        opportunities: company.opportunities.map((o) => ({
+          ...o,
+          amount: o.amount?.toString() ?? null,
+        })),
+      }
+    : null;
 }
 
 /** Cross-tenant reads must look like missing rows (404), never 403. */

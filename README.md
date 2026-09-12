@@ -1,8 +1,8 @@
-# Nine CRM — Sprint 0
+# Nine CRM
 
 純雲端、多租戶 SaaS CRM。獨立 Git 倉庫，**不與** Stellar-Jira / xMDR 自動化混放。
 
-## 鎖定選型（Sprint 0 DoD）
+## 鎖定選型
 
 | 項目 | 選擇 |
 |------|------|
@@ -11,9 +11,12 @@
 | 架構 | Next.js App Router modular monolith（`apps/web` Route Handlers） |
 | DB | PostgreSQL + Prisma；共用 DB + 列級 `tenant_id` |
 | API | REST JSON |
-| 日曆 UI | Sprint 1 再鎖定 FullCalendar **或** Schedule-X |
+| 日曆 UI | **內建週曆**（不混用 FullCalendar / Schedule-X） |
 
 產品約束：僅雲端 SaaS，不上 K8s、不做 GraphQL、不提供 on-prem 安裝包。
+
+Sprint 0：可登入骨架、schema v1、公司 CRUD、租戶隔離測試。  
+Sprint 1：聯絡人、商機狀態機、工單留言、週曆衝突警告、工單↔排程手動關聯。
 
 ## 目錄
 
@@ -74,10 +77,12 @@ npm run dev                   # http://localhost:3000
 ## 租戶隔離
 
 - 所有業務 query 的第一個參數是 `tenantId`（不可省略）
-- 跨租戶讀寫公司回 **404**（不回 403，避免洩漏資源存在）
+- 跨租戶讀寫回 **404**（不回 403，避免洩漏資源存在）
 - 邀請 token 以 SHA-256 存放；單次使用、7 天過期
 - Session 只帶 `user_id`；`tenant_id` 來自 httpOnly cookie，且必須對應 active membership
 - 郵件邀請為 **console stub**（不真發信）
+- 排程時間衝突回 `warnings[]`，**不阻擋儲存**
+- 工單完成 **不** 自動完成關聯排程（鬆耦合；解除連結不刪實體）
 
 ## 部署（preview / staging）
 
@@ -89,6 +94,6 @@ npm run dev                   # http://localhost:3000
 
 Sentry：有 DSN 才初始化；request log 含 `request_id` / `tenant_id` / `user_id`，不打密碼或 token。
 
-## Sprint 0 範圍外
+## Sprint 1 範圍外
 
-完整商機看板、工單留言、排程日曆、真發信、計費、檔案上傳、GraphQL、K8s、原生 App。
+真發信、計費、檔案上傳、自訂報表／CSV、GraphQL、K8s、原生 App。

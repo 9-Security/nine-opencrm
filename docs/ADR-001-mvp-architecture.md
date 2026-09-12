@@ -54,7 +54,7 @@ MVP 產品範圍包含：
 | Web | Next.js（App Router） |
 | Styling | Tailwind CSS + shadcn/ui |
 | Data fetching / table | TanStack Query + TanStack Table |
-| Calendar UI | FullCalendar 或 Schedule-X（擇一，全專案統一） |
+| Calendar UI | 內建週曆（Sprint 1 鎖定；不混用 FullCalendar / Schedule-X） |
 
 **理由**：B2B 後台以表格、篩選、表單、日曆為主；該組合招聘面廣、元件生態成熟。
 

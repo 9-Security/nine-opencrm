@@ -26,6 +26,13 @@ export class InviteError extends Error {
   }
 }
 
+export class ValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ValidationError';
+  }
+}
+
 /** tenantId is required — never optional — to prevent unscoped queries. */
 export function requireTenantId(tenantId: string): string {
   if (!tenantId || tenantId.trim() === '') {

@@ -4,6 +4,7 @@ import {
   InviteError,
   NotFoundError,
   TenantIsolationError,
+  ValidationError,
 } from '@crm/db';
 import { IllegalTransitionError } from '@crm/shared';
 import { getTenantContext, type TenantContext } from './tenant';
@@ -36,7 +37,7 @@ export function apiError(err: unknown, extra?: Record<string, unknown>) {
   if (err instanceof IllegalTransitionError) {
     return NextResponse.json({ error: err.message }, { status: 409 });
   }
-  if (err instanceof InviteError) {
+  if (err instanceof InviteError || err instanceof ValidationError) {
     return NextResponse.json({ error: err.message }, { status: 400 });
   }
   if (err instanceof Error && err.message === 'NEXT_REDIRECT') {

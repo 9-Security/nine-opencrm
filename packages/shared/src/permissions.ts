@@ -73,6 +73,34 @@ export function canWriteCompanies(role: Role): boolean {
   return hasPermission(role, 'companies:write');
 }
 
+export function canWriteContacts(role: Role): boolean {
+  return hasPermission(role, 'contacts:write');
+}
+
+export function canWriteOpportunities(role: Role): boolean {
+  return hasPermission(role, 'opportunities:write');
+}
+
+export function canWriteTickets(role: Role): boolean {
+  return hasPermission(role, 'tickets:write');
+}
+
+export function canAccessSchedules(role: Role): boolean {
+  return hasPermission(role, 'schedules:read') || hasPermission(role, 'schedules:self');
+}
+
+export function canWriteAnySchedule(role: Role): boolean {
+  return hasPermission(role, 'schedules:write') || hasPermission(role, 'schedules:self');
+}
+
+export function canManageAllSchedules(role: Role): boolean {
+  return hasPermission(role, 'schedules:write');
+}
+
+export function canSeeInternalComments(role: Role): boolean {
+  return hasPermission(role, 'tickets:write');
+}
+
 export function canAccessSettings(role: Role): boolean {
   return hasPermission(role, 'settings:write');
 }

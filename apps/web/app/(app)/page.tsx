@@ -1,7 +1,13 @@
 import Link from 'next/link';
 import { reportsRepo } from '@crm/db';
-import { OPPORTUNITY_STAGE_LABELS, type OpportunityStage } from '@crm/shared';
-import { canWriteCompanies } from '@crm/shared';
+import {
+  OPPORTUNITY_STAGE_LABELS,
+  canWriteAnySchedule,
+  canWriteCompanies,
+  canWriteOpportunities,
+  canWriteTickets,
+  type OpportunityStage,
+} from '@crm/shared';
 import { PageHeader } from '@/components/app-shell';
 import { Button } from '@/components/ui/button';
 import { Card, CardBody } from '@/components/ui/card';
@@ -17,7 +23,7 @@ export default async function HomePage() {
   const cards = [
     { label: '未結工單', value: summary.openTickets, href: '/tickets' },
     { label: '本週排程', value: summary.weekSchedules, href: '/schedules' },
-    { label: '今日待辦', value: summary.todayTodos, href: '/' },
+    { label: '今日待辦', value: summary.todayTodos, href: '/opportunities' },
     { label: '客戶數', value: summary.companyCount, href: '/companies' },
   ];
 
@@ -27,15 +33,27 @@ export default async function HomePage() {
         title={`你好，${ctx.name ?? ctx.email}`}
         description={`${ctx.tenantName} 摘要`}
         actions={
-          <div className="flex gap-2">
-            {canWriteCompanies(ctx.role) ? (
-              <Link href="/companies/new">
-                <Button>新建公司</Button>
+          <div className="flex flex-wrap gap-2">
+            {canWriteOpportunities(ctx.role) ? (
+              <Link href="/opportunities/new">
+                <Button>新建商機</Button>
               </Link>
             ) : null}
-            <Link href="/tickets">
-              <Button variant="outline">查看工單</Button>
-            </Link>
+            {canWriteTickets(ctx.role) ? (
+              <Link href="/tickets/new">
+                <Button variant="outline">新建工單</Button>
+              </Link>
+            ) : null}
+            {canWriteAnySchedule(ctx.role) ? (
+              <Link href="/schedules/new">
+                <Button variant="outline">新建排程</Button>
+              </Link>
+            ) : null}
+            {canWriteCompanies(ctx.role) ? (
+              <Link href="/companies/new">
+                <Button variant="secondary">新建公司</Button>
+              </Link>
+            ) : null}
           </div>
         }
       />

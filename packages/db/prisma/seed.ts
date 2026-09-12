@@ -161,6 +161,59 @@ async function main() {
     },
   });
 
+  const contact = await prisma.contact.create({
+    data: {
+      tenantId: acme.id,
+      companyId: north.id,
+      firstName: '美玲',
+      lastName: '王',
+      email: 'mei.wang@northstar.example',
+      phone: '0912-000-111',
+      ownerMembershipId: acmeAdmin.id,
+    },
+  });
+  await prisma.contact.create({
+    data: {
+      tenantId: beta.id,
+      firstName: '隔離',
+      lastName: '測試',
+      email: 'hidden@beta.example',
+    },
+  });
+
+  await prisma.ticketComment.create({
+    data: {
+      tenantId: acme.id,
+      ticketId: ticket.id,
+      authorMembershipId: acmeAdmin.id,
+      body: '已請門市重開機，仍無法登入。',
+      isInternal: false,
+    },
+  });
+  await prisma.ticketComment.create({
+    data: {
+      tenantId: acme.id,
+      ticketId: ticket.id,
+      authorMembershipId: acmeAdmin.id,
+      body: '內部：疑似授權檔過期。',
+      isInternal: true,
+    },
+  });
+
+  const due = new Date();
+  due.setHours(16, 0, 0, 0);
+  await prisma.activity.create({
+    data: {
+      tenantId: acme.id,
+      title: '回訪北極星採購',
+      status: 'todo',
+      dueAt: due,
+      companyId: north.id,
+      contactId: contact.id,
+      ownerMembershipId: acmeAdmin.id,
+    },
+  });
+
   console.log('Seed complete.');
   console.log('  Acme admin:       admin@acme.test / Password123!');
   console.log('  Acme sales:       sales@acme.test / Password123!');

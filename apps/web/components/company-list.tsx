@@ -9,6 +9,7 @@ import {
   useReactTable,
 } from '@tanstack/react-table';
 import { PageHeader } from '@/components/app-shell';
+import { CustomersTabs } from '@/components/customers-tabs';
 import { EmptyState } from '@/components/empty-state';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -74,7 +75,7 @@ export function CompanyList({ canWrite }: { canWrite: boolean }) {
     <div>
       <PageHeader
         title="客戶"
-        description="公司列表（聯絡人 CRUD 於 Sprint 1）"
+        description="公司與聯絡人"
         actions={
           canWrite ? (
             <Link href="/companies/new">
@@ -85,6 +86,7 @@ export function CompanyList({ canWrite }: { canWrite: boolean }) {
           )
         }
       />
+      <CustomersTabs active="companies" />
       {query.isLoading ? (
         <p className="text-sm text-slate-500">載入中…</p>
       ) : data.length === 0 ? (
