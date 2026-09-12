@@ -29,16 +29,16 @@ export async function POST(req: Request) {
     const body = schema.parse(await req.json());
     const email = body.email.trim().toLowerCase();
     const limitKey = rateLimitKey(['first-factor', clientIp(req), email]);
-    if (!peekRateLimit(limitKey, FIRST_FACTOR_LIMIT)) {
+    if (!(await peekRateLimit(limitKey, FIRST_FACTOR_LIMIT))) {
       return NextResponse.json({ error: '嘗試次數過多，請稍後再試' }, { status: 429 });
     }
     const result = await authRepo.verifyFirstFactor(email, body.password);
     if (!result) {
-      recordRateLimitHit(limitKey, FIRST_FACTOR_WINDOW_MS);
+      await recordRateLimitHit(limitKey, FIRST_FACTOR_WINDOW_MS);
       logRequest({ requestId, message: 'auth.first_factor_failed' });
       return NextResponse.json({ error: 'Email 或密碼不正確' }, { status: 401 });
     }
-    clearRateLimit(limitKey);
+    await clearRateLimit(limitKey);
     const leftover = await readLoginChallengeCookie();
     if (leftover) await authRepo.invalidateLoginChallenge(leftover);
     const raw = await authRepo.createLoginChallenge(result.user.id, result.firstFactor);

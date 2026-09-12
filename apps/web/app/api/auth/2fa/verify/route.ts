@@ -26,7 +26,7 @@ export async function POST(req: Request) {
     }
     const ticketHash = createHash('sha256').update(ticket).digest('hex').slice(0, 16);
     const limitKey = rateLimitKey(['2fa', clientIp(req), ticketHash]);
-    if (!peekRateLimit(limitKey, TOTP_VERIFY_LIMIT)) {
+    if (!(await peekRateLimit(limitKey, TOTP_VERIFY_LIMIT))) {
       return NextResponse.json({ error: '嘗試次數過多，請稍後再試' }, { status: 429 });
     }
     const body = schema.parse(await req.json());
@@ -34,11 +34,11 @@ export async function POST(req: Request) {
       await authRepo.verifySecondFactor(ticket, body.code);
     } catch (err) {
       if (err instanceof ValidationError) {
-        recordRateLimitHit(limitKey, TOTP_VERIFY_WINDOW_MS);
+        await recordRateLimitHit(limitKey, TOTP_VERIFY_WINDOW_MS);
       }
       throw err;
     }
-    clearRateLimit(limitKey);
+    await clearRateLimit(limitKey);
     return NextResponse.json({ ok: true });
   } catch (err) {
     if (err instanceof z.ZodError) {

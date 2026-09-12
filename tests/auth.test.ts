@@ -16,9 +16,9 @@ import {
 import { Secret, TOTP } from 'otpauth';
 import { createTenantUser } from './helpers';
 
-afterEach(() => {
+afterEach(async () => {
   setMailAuthenticator(null);
-  resetAllRateLimits();
+  await resetAllRateLimits();
 });
 
 function currentCode(secretBase32: string) {
@@ -294,13 +294,13 @@ describe('2FA enrollment and tenant require2fa', () => {
   });
 });
 
-describe('in-memory rate limit', () => {
-  it('blocks after the configured number of hits', () => {
+describe('persisted rate limit', () => {
+  it('blocks after the configured number of hits', async () => {
     const key = 'first-factor:test:user@example.com';
     for (let i = 0; i < FIRST_FACTOR_LIMIT; i += 1) {
-      expect(peekRateLimit(key, FIRST_FACTOR_LIMIT)).toBe(true);
-      recordRateLimitHit(key, 60_000);
+      expect(await peekRateLimit(key, FIRST_FACTOR_LIMIT)).toBe(true);
+      await recordRateLimitHit(key, 60_000);
     }
-    expect(peekRateLimit(key, FIRST_FACTOR_LIMIT)).toBe(false);
+    expect(await peekRateLimit(key, FIRST_FACTOR_LIMIT)).toBe(false);
   });
 });

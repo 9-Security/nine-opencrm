@@ -380,3 +380,9 @@ model StatusEvent {
 
   @@index([tenantId, entityType, entityId])
 }
+
+model RateLimitBucket {
+  key     String   @id
+  count   Int
+  resetAt DateTime
+}

@@ -42,13 +42,46 @@ export async function createInvite(params: {
   }
 
   const { raw, hash } = generateInviteToken();
+  const expiresAt = new Date(Date.now() + INVITE_TTL_MS);
+  const pending = await prisma.invite.findFirst({
+    where: {
+      tenantId: params.tenantId,
+      email,
+      acceptedAt: null,
+      expiresAt: { gt: new Date() },
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+  if (pending) {
+    await prisma.invite.updateMany({
+      where: {
+        tenantId: params.tenantId,
+        email,
+        acceptedAt: null,
+        id: { not: pending.id },
+        expiresAt: { gt: new Date() },
+      },
+      data: { expiresAt: new Date() },
+    });
+    const invite = await prisma.invite.update({
+      where: { id: pending.id },
+      data: {
+        role: params.role,
+        tokenHash: hash,
+        expiresAt,
+        createdByMembershipId: params.createdByMembershipId,
+      },
+    });
+    return { invite, rawToken: raw };
+  }
+
   const invite = await prisma.invite.create({
     data: {
       tenantId: params.tenantId,
       email,
       role: params.role,
       tokenHash: hash,
-      expiresAt: new Date(Date.now() + INVITE_TTL_MS),
+      expiresAt,
       createdByMembershipId: params.createdByMembershipId,
     },
   });

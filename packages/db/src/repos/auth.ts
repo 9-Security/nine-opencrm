@@ -69,7 +69,7 @@ export async function verifyFirstFactor(email: string, password: string) {
   const normalized = email.trim().toLowerCase();
   if (!normalized || !password) return null;
   const limitKey = rateLimitKey(['verify-first-factor', normalized]);
-  const limited = !peekRateLimit(limitKey, FIRST_FACTOR_LIMIT);
+  const limited = !(await peekRateLimit(limitKey, FIRST_FACTOR_LIMIT));
 
   const user = await prisma.user.findUnique({
     where: { email: normalized },
@@ -93,13 +93,13 @@ export async function verifyFirstFactor(email: string, password: string) {
   });
   if (!user) {
     await compare(password, UNKNOWN_USER_HASH);
-    if (!limited) recordRateLimitHit(limitKey, FIRST_FACTOR_WINDOW_MS);
+    if (!limited) await recordRateLimitHit(limitKey, FIRST_FACTOR_WINDOW_MS);
     return null;
   }
 
   const passwordOk = await compare(password, user.passwordHash);
   if (passwordOk) {
-    clearRateLimit(limitKey);
+    await clearRateLimit(limitKey);
     return { user, firstFactor: 'password' as const };
   }
 
@@ -117,14 +117,14 @@ export async function verifyFirstFactor(email: string, password: string) {
       password,
     });
     if (ok) {
-      clearRateLimit(limitKey);
+      await clearRateLimit(limitKey);
       return {
         user,
         firstFactor: (target.protocol === 'imap' ? 'imap' : 'pop3') as FirstFactor,
       };
     }
   }
-  recordRateLimitHit(limitKey, FIRST_FACTOR_WINDOW_MS);
+  await recordRateLimitHit(limitKey, FIRST_FACTOR_WINDOW_MS);
   return null;
 }
 

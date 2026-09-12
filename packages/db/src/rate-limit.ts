@@ -1,38 +1,46 @@
-type Bucket = { count: number; resetAt: number };
-
-const buckets = new Map<string, Bucket>();
+import { prisma } from './client';
 
 export const FIRST_FACTOR_LIMIT = 5;
 export const FIRST_FACTOR_WINDOW_MS = 15 * 60 * 1000;
 export const TOTP_VERIFY_LIMIT = 8;
 export const TOTP_VERIFY_WINDOW_MS = 15 * 60 * 1000;
 
-export function peekRateLimit(key: string, limit: number) {
-  const bucket = buckets.get(key);
-  if (!bucket) return true;
-  if (bucket.resetAt <= Date.now()) {
-    buckets.delete(key);
+export async function peekRateLimit(key: string, limit: number) {
+  const row = await prisma.rateLimitBucket.findUnique({ where: { key } });
+  if (!row) return true;
+  if (row.resetAt.getTime() <= Date.now()) {
+    await prisma.rateLimitBucket.deleteMany({ where: { key } });
     return true;
   }
-  return bucket.count < limit;
+  return row.count < limit;
 }
 
-export function recordRateLimitHit(key: string, windowMs: number) {
+export async function recordRateLimitHit(key: string, windowMs: number) {
   const now = Date.now();
-  const bucket = buckets.get(key);
-  if (!bucket || bucket.resetAt <= now) {
-    buckets.set(key, { count: 1, resetAt: now + windowMs });
-    return;
-  }
-  bucket.count += 1;
+  const resetAt = new Date(now + windowMs);
+  await prisma.$transaction(async (tx) => {
+    const row = await tx.rateLimitBucket.findUnique({ where: { key } });
+    if (!row || row.resetAt.getTime() <= now) {
+      await tx.rateLimitBucket.upsert({
+        where: { key },
+        create: { key, count: 1, resetAt },
+        update: { count: 1, resetAt },
+      });
+      return;
+    }
+    await tx.rateLimitBucket.update({
+      where: { key },
+      data: { count: { increment: 1 } },
+    });
+  });
 }
 
-export function clearRateLimit(key: string) {
-  buckets.delete(key);
+export async function clearRateLimit(key: string) {
+  await prisma.rateLimitBucket.deleteMany({ where: { key } });
 }
 
-export function resetAllRateLimits() {
-  buckets.clear();
+export async function resetAllRateLimits() {
+  await prisma.rateLimitBucket.deleteMany();
 }
 
 export function rateLimitKey(parts: string[]) {

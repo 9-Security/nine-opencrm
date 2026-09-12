@@ -106,4 +106,40 @@ describe('invites', () => {
       }),
     ).rejects.toBeInstanceOf(InviteError);
   });
+
+  it('keeps a single pending invite per tenant email', async () => {
+    const admin = await createTenantUser('admin');
+    const email = `once-${randomUUID().slice(0, 8)}@test.local`;
+    const first = await invitesRepo.createInvite({
+      tenantId: admin.tenant.id,
+      email,
+      role: 'sales',
+      createdByMembershipId: admin.membership.id,
+    });
+    const second = await invitesRepo.createInvite({
+      tenantId: admin.tenant.id,
+      email,
+      role: 'support',
+      createdByMembershipId: admin.membership.id,
+    });
+    expect(second.invite.id).toBe(first.invite.id);
+    expect(second.invite.role).toBe('support');
+    const pending = await prisma.invite.count({
+      where: {
+        tenantId: admin.tenant.id,
+        email,
+        acceptedAt: null,
+        expiresAt: { gt: new Date() },
+      },
+    });
+    expect(pending).toBe(1);
+    const user = await prisma.user.create({
+      data: { email, name: 'Once', passwordHash: 'x' },
+    });
+    await expect(
+      invitesRepo.acceptInvite(first.rawToken, user.id),
+    ).rejects.toBeInstanceOf(InviteError);
+    const accepted = await invitesRepo.acceptInvite(second.rawToken, user.id);
+    expect(accepted.membership.role).toBe('support');
+  });
 });

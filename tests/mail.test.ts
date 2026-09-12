@@ -30,6 +30,17 @@ describe('invite mail helpers', () => {
     );
   });
 
+  it('ignores loopback AUTH_URL until a public origin is set', () => {
+    process.env.AUTH_URL = 'http://localhost:3000';
+    const req = new Request('http://127.0.0.1:3000/api/invites', {
+      headers: {
+        'x-forwarded-proto': 'https',
+        'x-forwarded-host': 'crm.example.com',
+      },
+    });
+    expect(publicAppOrigin(req)).toBe('https://crm.example.com');
+  });
+
   it('skips Resend when no API key is configured', async () => {
     delete process.env.RESEND_API_KEY;
     expect(mailConfigured()).toBe(false);
