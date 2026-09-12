@@ -12,6 +12,7 @@ import {
   LayoutDashboard,
   LogOut,
   Settings,
+  Shield,
   Ticket,
   TrendingUp,
   Users,
@@ -177,6 +178,14 @@ export function AppShell({
                     </button>
                   ))}
                   <div className="my-2 border-t border-slate-100" />
+                  <Link
+                    href="/account/security"
+                    className="flex w-full items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                    onClick={() => setMenuOpen(false)}
+                  >
+                    <Shield className="h-4 w-4" />
+                    帳號安全
+                  </Link>
                   <button
                     type="button"
                     onClick={() => signOut({ callbackUrl: '/login' })}

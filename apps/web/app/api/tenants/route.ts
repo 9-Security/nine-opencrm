@@ -8,10 +8,23 @@ import { setTenantCookie } from '@/lib/tenant-cookie';
 import { logRequest } from '@/lib/log';
 
 const createSchema = z.object({ name: z.string().min(1) });
+const hostSchema = z
+  .string()
+  .regex(/^[A-Za-z0-9.-]*$/)
+  .max(253)
+  .optional()
+  .nullable();
+
 const patchSchema = z.object({
   name: z.string().min(1).optional(),
   timezone: z.string().min(1).optional(),
   workdays: z.array(z.number().int().min(0).max(6)).min(1).max(7).optional(),
+  mailAuthEnabled: z.boolean().optional(),
+  mailImapHost: hostSchema,
+  mailImapPort: z.number().int().min(1).max(65535).optional(),
+  mailPop3Host: hostSchema,
+  mailPop3Port: z.number().int().min(1).max(65535).optional(),
+  require2fa: z.boolean().optional(),
 });
 
 export async function GET(req: Request) {
@@ -38,6 +51,12 @@ export async function GET(req: Request) {
         timezone: tenant.timezone,
         slug: tenant.slug,
         workdays: tenantsRepo.parseWorkdays(tenant.workdays),
+        mailAuthEnabled: tenant.mailAuthEnabled,
+        mailImapHost: tenant.mailImapHost,
+        mailImapPort: tenant.mailImapPort,
+        mailPop3Host: tenant.mailPop3Host,
+        mailPop3Port: tenant.mailPop3Port,
+        require2fa: tenant.require2fa,
       },
       members,
       invites,

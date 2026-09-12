@@ -23,7 +23,8 @@
     "@crm/shared": "0.1.0",
     "@prisma/client": "^6.6.0",
     "bcryptjs": "^3.0.2",
-    "dotenv": "^16.4.7"
+    "dotenv": "^16.4.7",
+    "otpauth": "^9.4.0"
   },
   "devDependencies": {
     "prisma": "^6.6.0",

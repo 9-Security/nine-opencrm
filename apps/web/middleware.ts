@@ -19,8 +19,10 @@ function isPublic(pathname: string) {
 
 export default auth((req) => {
   const { pathname } = req.nextUrl;
+  const requestHeaders = new Headers(req.headers);
+  requestHeaders.set('x-pathname', pathname);
   if (isPublic(pathname)) {
-    return NextResponse.next();
+    return NextResponse.next({ request: { headers: requestHeaders } });
   }
   if (!req.auth) {
     if (pathname.startsWith('/api/')) {
@@ -31,7 +33,7 @@ export default auth((req) => {
     url.searchParams.set('from', pathname);
     return NextResponse.redirect(url);
   }
-  return NextResponse.next();
+  return NextResponse.next({ request: { headers: requestHeaders } });
 });
 
 export const config = {

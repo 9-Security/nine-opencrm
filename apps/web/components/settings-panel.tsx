@@ -47,7 +47,17 @@ export function SettingsPanel() {
       const res = await fetch('/api/tenants');
       if (!res.ok) throw new Error('failed');
       return res.json() as Promise<{
-        tenant: { name: string; timezone: string; workdays: number[] };
+        tenant: {
+          name: string;
+          timezone: string;
+          workdays: number[];
+          mailAuthEnabled: boolean;
+          mailImapHost: string | null;
+          mailImapPort: number;
+          mailPop3Host: string | null;
+          mailPop3Port: number;
+          require2fa: boolean;
+        };
         members: Member[];
         invites: Invite[];
       }>;
@@ -57,14 +67,24 @@ export function SettingsPanel() {
   async function saveTenant(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const form = new FormData(e.currentTarget);
+    const payload: Record<string, unknown> = {};
+    if (form.has('name')) {
+      payload.name = form.get('name');
+      payload.timezone = form.get('timezone');
+      payload.workdays = Array.from(form.getAll('workdays')).map((v) => Number(v));
+    }
+    if (form.has('mailImapHost')) {
+      payload.mailAuthEnabled = form.get('mailAuthEnabled') === 'on';
+      payload.mailImapHost = String(form.get('mailImapHost') ?? '');
+      payload.mailImapPort = Number(form.get('mailImapPort') || 993);
+      payload.mailPop3Host = String(form.get('mailPop3Host') ?? '');
+      payload.mailPop3Port = Number(form.get('mailPop3Port') || 995);
+      payload.require2fa = form.get('require2fa') === 'on';
+    }
     const res = await fetch('/api/tenants', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: form.get('name'),
-        timezone: form.get('timezone'),
-        workdays: Array.from(form.getAll('workdays')).map((v) => Number(v)),
-      }),
+      body: JSON.stringify(payload),
     });
     if (!res.ok) {
       toast.error('無法儲存租戶設定');
@@ -156,6 +176,78 @@ export function SettingsPanel() {
             </fieldset>
             <Button type="submit" className="w-fit">
               儲存
+            </Button>
+          </form>
+          <p className="mt-4 text-xs text-slate-400">方案資訊（佔位）— MVP 不計費</p>
+        </CardBody>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <h2 className="font-semibold">登入認證</h2>
+        </CardHeader>
+        <CardBody>
+          <form onSubmit={saveTenant} className="grid max-w-lg gap-4">
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                name="mailAuthEnabled"
+                defaultChecked={tenant.mailAuthEnabled}
+              />
+              允許以公司信箱 IMAPS / POP3S 認證登入（密碼不會被存成信箱密碼）
+            </label>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="mailImapHost">IMAPS 主機</Label>
+                <Input
+                  id="mailImapHost"
+                  name="mailImapHost"
+                  defaultValue={tenant.mailImapHost ?? ''}
+                  placeholder="mail.example.com"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="mailImapPort">埠</Label>
+                <Input
+                  id="mailImapPort"
+                  name="mailImapPort"
+                  type="number"
+                  defaultValue={tenant.mailImapPort}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="mailPop3Host">POP3S 主機</Label>
+                <Input
+                  id="mailPop3Host"
+                  name="mailPop3Host"
+                  defaultValue={tenant.mailPop3Host ?? ''}
+                  placeholder="mail.example.com"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="mailPop3Port">埠</Label>
+                <Input
+                  id="mailPop3Port"
+                  name="mailPop3Port"
+                  type="number"
+                  defaultValue={tenant.mailPop3Port}
+                />
+              </div>
+            </div>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                name="require2fa"
+                defaultChecked={tenant.require2fa}
+              />
+              要求成員啟用 TOTP 兩步驟驗證
+            </label>
+            <p className="text-xs text-slate-400">
+              IMAPS 預設 993、POP3S 預設 995，皆為 TLS。亦可設環境變數 MAIL_AUTH_IMAP_HOST
+              / MAIL_AUTH_POP3_HOST 作為全域信箱登入。
+            </p>
+            <Button type="submit" className="w-fit">
+              儲存登入設定
             </Button>
           </form>
           <p className="mt-4 text-xs text-slate-400">方案資訊（佔位）— MVP 不計費</p>

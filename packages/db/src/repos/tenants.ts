@@ -104,7 +104,17 @@ export async function updateMemberRole(
 
 export async function updateTenantSettings(
   tenantId: string,
-  data: { name?: string; timezone?: string; workdays?: number[] },
+  data: {
+    name?: string;
+    timezone?: string;
+    workdays?: number[];
+    mailAuthEnabled?: boolean;
+    mailImapHost?: string | null;
+    mailImapPort?: number;
+    mailPop3Host?: string | null;
+    mailPop3Port?: number;
+    require2fa?: boolean;
+  },
 ) {
   return prisma.tenant.update({
     where: { id: tenantId },
@@ -112,6 +122,18 @@ export async function updateTenantSettings(
       ...(data.name !== undefined ? { name: data.name.trim() } : {}),
       ...(data.timezone !== undefined ? { timezone: data.timezone.trim() } : {}),
       ...(data.workdays !== undefined ? { workdays: data.workdays } : {}),
+      ...(data.mailAuthEnabled !== undefined
+        ? { mailAuthEnabled: data.mailAuthEnabled }
+        : {}),
+      ...(data.mailImapHost !== undefined
+        ? { mailImapHost: data.mailImapHost?.trim() || null }
+        : {}),
+      ...(data.mailImapPort !== undefined ? { mailImapPort: data.mailImapPort } : {}),
+      ...(data.mailPop3Host !== undefined
+        ? { mailPop3Host: data.mailPop3Host?.trim() || null }
+        : {}),
+      ...(data.mailPop3Port !== undefined ? { mailPop3Port: data.mailPop3Port } : {}),
+      ...(data.require2fa !== undefined ? { require2fa: data.require2fa } : {}),
     },
   });
 }

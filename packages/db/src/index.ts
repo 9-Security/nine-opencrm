@@ -10,5 +10,8 @@ export * as invitesRepo from './repos/invites';
 export * as tenantsRepo from './repos/tenants';
 export * as reportsRepo from './repos/reports';
 export * as tagsRepo from './repos/tags';
+export * as authRepo from './repos/auth';
 export * as listsRepo from './repos/lists';
 export * from './repos/tenant-guard';
+export * from './mail-auth';
+export * from './totp';

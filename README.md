@@ -6,7 +6,7 @@
 
 | 項目 | 選擇 |
 |------|------|
-| Auth | **Auth.js (NextAuth v5)** + Credentials（**不是 Clerk**） |
+| Auth | **Auth.js (NextAuth v5)** + Credentials；可加 **IMAPS/POP3S** 信箱認證與 **TOTP 2FA**（**不是 Clerk**） |
 | 授權 | 自建 `memberships`（`tenant_id` + `user_id` + `role`） |
 | 架構 | Next.js App Router modular monolith（`apps/web` Route Handlers） |
 | DB | PostgreSQL + Prisma；共用 DB + 列級 `tenant_id` |
@@ -17,7 +17,8 @@
 
 Sprint 0：可登入骨架、schema v1、公司 CRUD、租戶隔離測試。  
 Sprint 1：聯絡人、商機狀態機、工單留言、週曆衝突警告、工單↔排程手動關聯。  
-Sprint 2：公司標籤與列表篩選、首頁待辦 inbox、報表 API、工作日與通知佔位。
+Sprint 2：公司標籤與列表篩選、首頁待辦 inbox、報表 API、工作日與通知佔位。  
+登入：本機密碼、可選 IMAPS/POP3S 信箱認證、TOTP 兩步驟驗證。
 
 ## 目錄
 

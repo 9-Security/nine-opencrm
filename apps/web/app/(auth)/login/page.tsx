@@ -13,42 +13,123 @@ export default function LoginPage() {
   const params = useSearchParams();
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [step, setStep] = useState<'password' | 'totp'>('password');
+  const [factorHint, setFactorHint] = useState<string | null>(null);
 
-  async function onSubmit(e: FormEvent<HTMLFormElement>) {
+  async function completeSignIn() {
+    const res = await signIn('credentials', {
+      challenge: 'cookie',
+      redirect: false,
+    });
+    if (!res || res.error) {
+      setError('無法完成登入，請重試');
+      return false;
+    }
+    router.push(params.get('from') || '/');
+    router.refresh();
+    return true;
+  }
+
+  async function onPassword(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setPending(true);
     setError(null);
     const form = new FormData(e.currentTarget);
-    const res = await signIn('credentials', {
-      email: String(form.get('email') ?? ''),
-      password: String(form.get('password') ?? ''),
-      redirect: false,
+    const res = await fetch('/api/auth/first-factor', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: String(form.get('email') ?? ''),
+        password: String(form.get('password') ?? ''),
+      }),
     });
-    setPending(false);
-    if (!res || res.error) {
-      setError('Email 或密碼不正確');
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setPending(false);
+      setError(body.error ?? 'Email 或密碼不正確');
       return;
     }
-    router.push(params.get('from') || '/');
-    router.refresh();
+    if (body.firstFactor === 'imap') setFactorHint('已通過 IMAPS 信箱認證');
+    if (body.firstFactor === 'pop3') setFactorHint('已通過 POP3S 信箱認證');
+    if (body.requires2fa) {
+      setPending(false);
+      setStep('totp');
+      return;
+    }
+    const ok = await completeSignIn();
+    if (!ok) setPending(false);
+  }
+
+  async function onTotp(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setPending(true);
+    setError(null);
+    const form = new FormData(e.currentTarget);
+    const res = await fetch('/api/auth/2fa/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: String(form.get('code') ?? '') }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setPending(false);
+      setError(body.error ?? '驗證碼不正確');
+      return;
+    }
+    const ok = await completeSignIn();
+    if (!ok) setPending(false);
   }
 
   return (
-    <AuthCard title="登入 Nine CRM" subtitle="純雲端多租戶 · 客戶不必維運主機">
-      <form onSubmit={onSubmit} className="space-y-4">
-        <Field label="Email" name="email" type="email" autoComplete="email" required />
-        <Field
-          label="密碼"
-          name="password"
-          type="password"
-          autoComplete="current-password"
-          required
-        />
-        {error ? <p className="text-sm text-red-600">{error}</p> : null}
-        <Button className="w-full" disabled={pending}>
-          {pending ? '登入中…' : '登入'}
-        </Button>
-      </form>
+    <AuthCard
+      title={step === 'totp' ? '兩步驟驗證' : '登入 Nine CRM'}
+      subtitle={
+        step === 'totp'
+          ? '輸入驗證器 App 的 6 位數代碼，或備用碼'
+          : '可用 CRM 密碼，或公司信箱 IMAPS / POP3S 認證'
+      }
+    >
+      {step === 'password' ? (
+        <form onSubmit={onPassword} className="space-y-4">
+          <Field label="Email" name="email" type="email" autoComplete="email" required />
+          <Field
+            label="密碼"
+            name="password"
+            type="password"
+            autoComplete="current-password"
+            required
+          />
+          {error ? <p className="text-sm text-red-600">{error}</p> : null}
+          <Button className="w-full" disabled={pending}>
+            {pending ? '驗證中…' : '繼續'}
+          </Button>
+        </form>
+      ) : (
+        <form onSubmit={onTotp} className="space-y-4">
+          {factorHint ? <p className="text-sm text-slate-600">{factorHint}</p> : null}
+          <Field
+            label="驗證碼"
+            name="code"
+            type="text"
+            autoComplete="one-time-code"
+            required
+          />
+          {error ? <p className="text-sm text-red-600">{error}</p> : null}
+          <Button className="w-full" disabled={pending}>
+            {pending ? '登入中…' : '登入'}
+          </Button>
+          <button
+            type="button"
+            className="w-full text-sm text-slate-500 hover:text-slate-700"
+            onClick={() => {
+              setStep('password');
+              setError(null);
+            }}
+          >
+            改用其他帳號
+          </button>
+        </form>
+      )}
       <p className="mt-4 text-center text-sm text-slate-500">
         還沒有帳號？{' '}
         <Link href="/register" className="font-medium text-accent hover:underline">
