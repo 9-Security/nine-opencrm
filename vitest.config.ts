@@ -20,6 +20,7 @@ export default defineConfig({
     alias: {
       '@crm/shared': path.resolve(__dirname, 'packages/shared/src/index.ts'),
       '@crm/db': path.resolve(__dirname, 'packages/db/src/index.ts'),
+      '@': path.resolve(__dirname, 'apps/web'),
     },
   },
 });

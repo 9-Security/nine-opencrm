@@ -2,6 +2,7 @@ import type { Role } from '@crm/shared';
 import { canWriteCompanies } from '@crm/shared';
 import { prisma } from '../client';
 import { ForbiddenError, NotFoundError, requireTenantId } from '../errors';
+import { attachTags, entityIdsForTag, replaceTags } from './tags';
 import { assertMembershipInTenant } from './tenant-guard';
 
 export type CompanyInput = {
@@ -10,15 +11,31 @@ export type CompanyInput = {
   phone?: string | null;
   notes?: string | null;
   ownerMembershipId?: string | null;
+  tags?: string[];
 };
 
 function scoped(tenantId: string) {
   return { tenantId: requireTenantId(tenantId), deletedAt: null };
 }
 
-export async function listCompanies(tenantId: string) {
-  return prisma.company.findMany({
-    where: scoped(tenantId),
+export async function listCompanies(
+  tenantId: string,
+  opts?: { q?: string; take?: number; tag?: string; ownerMembershipId?: string },
+) {
+  requireTenantId(tenantId);
+  let ids: string[] | undefined;
+  if (opts?.tag?.trim()) {
+    ids = await entityIdsForTag(tenantId, 'company', opts.tag);
+    if (ids.length === 0) return [];
+  }
+  const rows = await prisma.company.findMany({
+    where: {
+      ...scoped(tenantId),
+      ...(opts?.q ? { name: { contains: opts.q, mode: 'insensitive' } } : {}),
+      ...(opts?.ownerMembershipId ? { ownerMembershipId: opts.ownerMembershipId } : {}),
+      ...(ids ? { id: { in: ids } } : {}),
+    },
+    ...(opts?.take ? { take: opts.take } : {}),
     orderBy: { updatedAt: 'desc' },
     include: {
       owner: {
@@ -26,6 +43,7 @@ export async function listCompanies(tenantId: string) {
       },
     },
   });
+  return attachTags(tenantId, 'company', rows);
 }
 
 export async function getCompany(tenantId: string, id: string) {
@@ -35,9 +53,33 @@ export async function getCompany(tenantId: string, id: string) {
       owner: {
         select: { id: true, role: true, user: { select: { name: true, email: true } } },
       },
+      contacts: {
+        orderBy: { updatedAt: 'desc' },
+        take: 20,
+        select: { id: true, firstName: true, lastName: true, email: true, phone: true },
+      },
+      opportunities: {
+        orderBy: { updatedAt: 'desc' },
+        take: 20,
+        select: { id: true, title: true, stage: true, amount: true },
+      },
+      tickets: {
+        orderBy: { updatedAt: 'desc' },
+        take: 20,
+        select: { id: true, title: true, status: true, priority: true },
+      },
     },
   });
-  return company;
+  return company
+    ? {
+        ...company,
+        opportunities: company.opportunities.map((o) => ({
+          ...o,
+          amount: o.amount?.toString() ?? null,
+        })),
+        tags: (await attachTags(tenantId, 'company', [company]))[0]?.tags ?? [],
+      }
+    : null;
 }
 
 /** Cross-tenant reads must look like missing rows (404), never 403. */
@@ -65,7 +107,7 @@ export async function createCompany(tenantId: string, role: Role, input: Company
   if (input.ownerMembershipId) {
     await assertMembershipInTenant(tenantId, input.ownerMembershipId);
   }
-  return prisma.company.create({
+  const company = await prisma.company.create({
     data: {
       tenantId,
       name,
@@ -75,6 +117,10 @@ export async function createCompany(tenantId: string, role: Role, input: Company
       ownerMembershipId: input.ownerMembershipId || null,
     },
   });
+  if (input.tags) {
+    await replaceTags(tenantId, 'company', company.id, input.tags);
+  }
+  return getCompanyOrThrow(tenantId, company.id);
 }
 
 export async function updateCompany(
@@ -89,8 +135,8 @@ export async function updateCompany(
   if (input.ownerMembershipId) {
     await assertMembershipInTenant(tenantId, input.ownerMembershipId);
   }
-  return prisma.company.update({
-    where: { id },
+  const updated = await prisma.company.updateMany({
+    where: { id, tenantId, deletedAt: null },
     data: {
       ...(input.name !== undefined ? { name: input.name.trim() } : {}),
       ...(input.website !== undefined ? { website: input.website?.trim() || null } : {}),
@@ -101,14 +147,25 @@ export async function updateCompany(
         : {}),
     },
   });
+  if (updated.count === 0) {
+    throw new NotFoundError('Company not found');
+  }
+  if (input.tags) {
+    await replaceTags(tenantId, 'company', id, input.tags);
+  }
+  return getCompanyOrThrow(tenantId, id);
 }
 
 export async function softDeleteCompany(tenantId: string, role: Role, id: string) {
   requireTenantId(tenantId);
   assertWrite(role);
   await getCompanyOrThrow(tenantId, id);
-  return prisma.company.update({
-    where: { id },
+  const updated = await prisma.company.updateMany({
+    where: { id, tenantId, deletedAt: null },
     data: { deletedAt: new Date() },
   });
+  if (updated.count === 0) {
+    throw new NotFoundError('Company not found');
+  }
+  return prisma.company.findFirst({ where: { id, tenantId } });
 }

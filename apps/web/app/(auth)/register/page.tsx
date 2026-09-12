@@ -18,10 +18,17 @@ export default function RegisterPage() {
     setPending(true);
     setError(null);
     const form = new FormData(e.currentTarget);
+    const password = String(form.get('password') ?? '');
+    const confirm = String(form.get('passwordConfirm') ?? '');
+    if (password !== confirm) {
+      setError('兩次密碼不一致');
+      setPending(false);
+      return;
+    }
     const payload = {
       name: String(form.get('name') ?? ''),
       email: String(form.get('email') ?? ''),
-      password: String(form.get('password') ?? ''),
+      password,
       tenantName: String(form.get('tenantName') ?? ''),
     };
     const res = await fetch('/api/auth/register', {
@@ -71,6 +78,16 @@ export default function RegisterPage() {
           <div className="space-y-1.5">
             <Label htmlFor="password">密碼（至少 8 碼）</Label>
             <Input id="password" name="password" type="password" minLength={8} required />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="passwordConfirm">再輸入一次密碼</Label>
+            <Input
+              id="passwordConfirm"
+              name="passwordConfirm"
+              type="password"
+              minLength={8}
+              required
+            />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="tenantName">公司／租戶名稱</Label>

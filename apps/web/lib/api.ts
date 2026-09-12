@@ -1,17 +1,22 @@
+import { headers } from 'next/headers';
 import { NextResponse } from 'next/server';
 import {
+  authRepo,
+  ConflictError,
   ForbiddenError,
   InviteError,
   NotFoundError,
   TenantIsolationError,
+  UnauthorizedError as DbUnauthorizedError,
+  ValidationError,
 } from '@crm/db';
 import { IllegalTransitionError } from '@crm/shared';
 import { getTenantContext, type TenantContext } from './tenant';
 import { logRequest } from './log';
 
 export class UnauthorizedError extends Error {
-  constructor() {
-    super('Unauthorized');
+  constructor(message = 'Unauthorized') {
+    super(message);
     this.name = 'UnauthorizedError';
   }
 }
@@ -20,12 +25,25 @@ export async function loadApiTenant(): Promise<TenantContext> {
   const result = await getTenantContext();
   if (!result) throw new UnauthorizedError();
   if (!result.ctx) throw new ForbiddenError('No tenant membership');
+  const pathname = (await headers()).get('x-pathname') ?? '';
+  if (
+    authRepo.apiBlockedForMissing2fa({
+      require2fa: result.ctx.require2fa,
+      totpEnabled: result.ctx.totpEnabled,
+      pathname,
+    })
+  ) {
+    throw new ForbiddenError('Two-factor authentication is required');
+  }
   return result.ctx;
 }
 
 export function apiError(err: unknown, extra?: Record<string, unknown>) {
-  if (err instanceof UnauthorizedError) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (err instanceof UnauthorizedError || err instanceof DbUnauthorizedError) {
+    return NextResponse.json(
+      { error: err instanceof DbUnauthorizedError ? err.message : 'Unauthorized' },
+      { status: 401 },
+    );
   }
   if (err instanceof NotFoundError || err instanceof TenantIsolationError) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
@@ -33,10 +51,10 @@ export function apiError(err: unknown, extra?: Record<string, unknown>) {
   if (err instanceof ForbiddenError) {
     return NextResponse.json({ error: err.message }, { status: 403 });
   }
-  if (err instanceof IllegalTransitionError) {
+  if (err instanceof IllegalTransitionError || err instanceof ConflictError) {
     return NextResponse.json({ error: err.message }, { status: 409 });
   }
-  if (err instanceof InviteError) {
+  if (err instanceof InviteError || err instanceof ValidationError) {
     return NextResponse.json({ error: err.message }, { status: 400 });
   }
   if (err instanceof Error && err.message === 'NEXT_REDIRECT') {

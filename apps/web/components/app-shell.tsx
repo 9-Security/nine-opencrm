@@ -11,8 +11,8 @@ import {
   CircleHelp,
   LayoutDashboard,
   LogOut,
-  Search,
   Settings,
+  Shield,
   Ticket,
   TrendingUp,
   Users,
@@ -22,6 +22,7 @@ import { hasPermission, ROLE_LABELS, type Permission, type Role } from '@crm/sha
 import type { TenantContext } from '@/lib/tenant';
 import { cn } from '@/lib/utils';
 import { ForbiddenToast } from './forbidden-toast';
+import { GlobalSearch } from './global-search';
 
 const NAV: Array<{
   href: string;
@@ -102,7 +103,11 @@ export function AppShell({
         <nav className="flex-1 space-y-0.5 p-3">
           {items.map((item) => {
             const active =
-              item.href === '/' ? pathname === '/' : pathname.startsWith(item.href);
+              item.href === '/'
+                ? pathname === '/'
+                : item.href === '/companies'
+                  ? pathname.startsWith('/companies') || pathname.startsWith('/contacts')
+                  : pathname.startsWith(item.href);
             const Icon = item.icon;
             return (
               <Link
@@ -122,24 +127,15 @@ export function AppShell({
           })}
         </nav>
         <div className="border-t border-white/10 p-3 text-[11px] text-slate-500">
-          雲端多租戶 · Sprint 0
+          試用版 · 歡迎回饋
         </div>
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex h-14 items-center justify-between border-b border-slate-200 bg-white px-6">
-          <div className="flex items-center gap-2 text-slate-400">
-            <Search className="h-4 w-4" />
-            <span className="text-sm">搜尋客戶與工單（即將推出）</span>
-          </div>
+          <GlobalSearch />
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              className="rounded-lg p-2 text-slate-400 hover:bg-slate-100"
-              aria-label="通知"
-            >
-              <Bell className="h-4 w-4" />
-            </button>
+            <NotificationsPlaceholder />
             <div className="relative">
               <button
                 type="button"
@@ -182,6 +178,14 @@ export function AppShell({
                     </button>
                   ))}
                   <div className="my-2 border-t border-slate-100" />
+                  <Link
+                    href="/account/security"
+                    className="flex w-full items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                    onClick={() => setMenuOpen(false)}
+                  >
+                    <Shield className="h-4 w-4" />
+                    帳號安全
+                  </Link>
                   <button
                     type="button"
                     onClick={() => signOut({ callbackUrl: '/login' })}
@@ -229,5 +233,29 @@ export function HelpHint({ children }: { children: React.ReactNode }) {
       <CircleHelp className="mt-0.5 h-3.5 w-3.5 shrink-0" />
       {children}
     </p>
+  );
+}
+
+function NotificationsPlaceholder() {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        className="rounded-lg p-2 text-slate-400 hover:bg-slate-100"
+        aria-label="通知"
+        onClick={() => setOpen((v) => !v)}
+      >
+        <Bell className="h-4 w-4" />
+      </button>
+      {open ? (
+        <div className="absolute right-0 z-20 mt-2 w-64 rounded-xl border border-slate-200 bg-white p-3 text-sm shadow-card">
+          <p className="font-medium text-slate-800">通知</p>
+          <p className="mt-1 text-xs text-slate-500">
+            MVP 尚無即時通知，請用首頁待辦與工單列表追蹤。
+          </p>
+        </div>
+      ) : null}
+    </div>
   );
 }

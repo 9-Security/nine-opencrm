@@ -1,19 +1,27 @@
-# Nine CRM — Sprint 0
+# Nine CRM
 
 純雲端、多租戶 SaaS CRM。獨立 Git 倉庫，**不與** Stellar-Jira / xMDR 自動化混放。
 
-## 鎖定選型（Sprint 0 DoD）
+## 鎖定選型
 
 | 項目 | 選擇 |
 |------|------|
-| Auth | **Auth.js (NextAuth v5)** + Credentials（**不是 Clerk**） |
+| Auth | **Auth.js (NextAuth v5)** + Credentials；可加 **IMAPS/POP3S** 信箱認證與 **TOTP 2FA**（**不是 Clerk**） |
 | 授權 | 自建 `memberships`（`tenant_id` + `user_id` + `role`） |
 | 架構 | Next.js App Router modular monolith（`apps/web` Route Handlers） |
 | DB | PostgreSQL + Prisma；共用 DB + 列級 `tenant_id` |
 | API | REST JSON |
-| 日曆 UI | Sprint 1 再鎖定 FullCalendar **或** Schedule-X |
+| 日曆 UI | **內建週曆**（不混用 FullCalendar / Schedule-X） |
 
 產品約束：僅雲端 SaaS，不上 K8s、不做 GraphQL、不提供 on-prem 安裝包。
+
+Sprint 0：可登入骨架、schema v1、公司 CRUD、租戶隔離測試。  
+Sprint 1：聯絡人、商機狀態機、工單留言、週曆衝突警告、工單↔排程手動關聯。  
+Sprint 2：公司標籤與列表篩選、首頁待辦 inbox、報表 API、工作日與通知佔位。  
+Sprint 3：本機密碼、可選 IMAPS/POP3S 信箱認證、TOTP 兩步驟驗證。  
+Sprint 4：聯絡人活動時間線；first-factor 失敗後停止探測信箱。  
+Sprint 5：試用版體驗——邀請複製連結、空租戶引導、從公司帶入新建。  
+Sprint 6：Resend 邀請信；邀請連結用 `AUTH_URL`；Cloudflare 僅用於寄信網域診斷。
 
 ## 目錄
 
@@ -22,7 +30,7 @@ apps/web          Next.js UI + REST
 packages/db       Prisma schema / client / tenant-scoped repos
 packages/shared   role / status / stage / priority / 狀態機
 tests             租戶隔離、邀請、狀態機（進 CI）
-docs              ADR-001 / IA / Sprint 0 清單
+docs              ADR-001 / IA / Sprint 清單
 ```
 
 ## 本機啟動
@@ -74,21 +82,23 @@ npm run dev                   # http://localhost:3000
 ## 租戶隔離
 
 - 所有業務 query 的第一個參數是 `tenantId`（不可省略）
-- 跨租戶讀寫公司回 **404**（不回 403，避免洩漏資源存在）
+- 跨租戶讀寫回 **404**（不回 403，避免洩漏資源存在）
 - 邀請 token 以 SHA-256 存放；單次使用、7 天過期
 - Session 只帶 `user_id`；`tenant_id` 來自 httpOnly cookie，且必須對應 active membership
-- 郵件邀請為 **console stub**（不真發信）
+- 郵件邀請走 **Resend**（`RESEND_API_KEY`）；未設定或寄送失敗時仍可複製連結
+- 排程時間衝突回 `warnings[]`，**不阻擋儲存**
+- 工單完成 **不** 自動完成關聯排程（鬆耦合；解除連結不刪實體）
 
 ## 部署（preview / staging）
 
 1. 托管 Postgres（Neon / Supabase / RDS / Railway）
 2. Vercel 部署 `apps/web`（root directory = `apps/web`）
-3. 環境變數：`DATABASE_URL`、`AUTH_SECRET`、`AUTH_URL`、可選 `SENTRY_DSN`
+3. 環境變數：`DATABASE_URL`、`AUTH_SECRET`、`AUTH_URL`、可選 `RESEND_API_KEY` / `RESEND_FROM`、可選 `SENTRY_DSN`
 4. Release 步驟：`npm run db:migrate`
 5. Seed **不要**在 production 跑
 
 Sentry：有 DSN 才初始化；request log 含 `request_id` / `tenant_id` / `user_id`，不打密碼或 token。
 
-## Sprint 0 範圍外
+## Sprint 1 範圍外
 
-完整商機看板、工單留言、排程日曆、真發信、計費、檔案上傳、GraphQL、K8s、原生 App。
+計費、檔案上傳、自訂報表／CSV、GraphQL、K8s、原生 App。

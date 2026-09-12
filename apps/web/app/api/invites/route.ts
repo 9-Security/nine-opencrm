@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { ROLES, canAccessSettings } from '@crm/shared';
 import { ForbiddenError, invitesRepo } from '@crm/db';
 import { apiError, loadApiTenant } from '@/lib/api';
+import { inviteJoinUrl } from '@/lib/app-origin';
+import { sendInviteEmail } from '@/lib/invite-mail';
 import { logRequest } from '@/lib/log';
 
 const schema = z.object({
@@ -24,21 +26,26 @@ export async function POST(req: Request) {
       role: body.role,
       createdByMembershipId: ctx.membershipId,
     });
-    const origin = new URL(req.url).origin;
-    const inviteUrl = `${origin}/invites/${rawToken}`;
-    // Email is stubbed: log the URL instead of sending.
+    const inviteUrl = inviteJoinUrl(req, rawToken);
+    const emailed = await sendInviteEmail({
+      tenantName: ctx.tenantName,
+      role: body.role,
+      inviteUrl,
+      to: body.email,
+    });
     logRequest({
       requestId,
       message: 'invite.created',
       tenant_id: ctx.tenantId,
       user_id: ctx.userId,
       invite_email: body.email,
-      invite_url: inviteUrl,
+      emailed: emailed.sent,
+      email_reason: emailed.sent ? undefined : emailed.reason,
     });
-    console.info(`[invite stub] ${body.email} → ${inviteUrl}`);
     return NextResponse.json({
       invite: { id: invite.id, email: invite.email, role: invite.role },
       inviteUrl,
+      emailed: emailed.sent,
     });
   } catch (err) {
     if (err instanceof z.ZodError) {

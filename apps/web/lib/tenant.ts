@@ -1,7 +1,7 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
-import { tenantsRepo } from '@crm/db';
+import { authRepo, tenantsRepo } from '@crm/db';
 import type { Role } from '@crm/shared';
 
 export const TENANT_COOKIE = 'crm-tenant-id';
@@ -15,6 +15,9 @@ export type TenantContext = {
   tenantSlug: string;
   membershipId: string;
   role: Role;
+  workdays: number[];
+  totpEnabled: boolean;
+  require2fa: boolean;
   memberships: Array<{
     id: string;
     tenantId: string;
@@ -68,6 +71,7 @@ export async function getTenantContext(): Promise<
   const selected =
     memberships.find((m) => m.tenantId === cookieTenant) ?? memberships[0]!;
   const row = rows.find((r) => r.id === selected.id)!;
+  const authStatus = await authRepo.getUserAuthStatus(user.id);
 
   return {
     user,
@@ -81,6 +85,9 @@ export async function getTenantContext(): Promise<
       tenantSlug: row.tenant.slug,
       membershipId: selected.id,
       role: selected.role,
+      workdays: tenantsRepo.parseWorkdays(row.tenant.workdays),
+      totpEnabled: authStatus.totpEnabled,
+      require2fa: row.tenant.require2fa,
       memberships,
     },
   };

@@ -1,6 +1,7 @@
 import { hash } from 'bcryptjs';
 import { prisma } from '../client';
-import { ForbiddenError } from '../errors';
+import { ConflictError, ForbiddenError, ValidationError } from '../errors';
+import { isBlockedMailHost } from '../mail-auth';
 
 function slugify(name: string): string {
   const base = name
@@ -62,7 +63,7 @@ export async function registerUser(params: {
   const email = params.email.trim().toLowerCase();
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) {
-    throw new ForbiddenError('Email already registered');
+    throw new ConflictError('這個 Email 已經註冊，請直接登入');
   }
   if (params.password.length < 8) {
     throw new Error('Password must be at least 8 characters');
@@ -104,10 +105,54 @@ export async function updateMemberRole(
 
 export async function updateTenantSettings(
   tenantId: string,
-  data: { name?: string; timezone?: string },
+  data: {
+    name?: string;
+    timezone?: string;
+    workdays?: number[];
+    mailAuthEnabled?: boolean;
+    mailImapHost?: string | null;
+    mailImapPort?: number;
+    mailPop3Host?: string | null;
+    mailPop3Port?: number;
+    require2fa?: boolean;
+  },
 ) {
+  const mailImapHost =
+    data.mailImapHost === undefined ? undefined : normalizeMailHost(data.mailImapHost);
+  const mailPop3Host =
+    data.mailPop3Host === undefined ? undefined : normalizeMailHost(data.mailPop3Host);
+
   return prisma.tenant.update({
     where: { id: tenantId },
-    data,
+    data: {
+      ...(data.name !== undefined ? { name: data.name.trim() } : {}),
+      ...(data.timezone !== undefined ? { timezone: data.timezone.trim() } : {}),
+      ...(data.workdays !== undefined ? { workdays: data.workdays } : {}),
+      ...(data.mailAuthEnabled !== undefined
+        ? { mailAuthEnabled: data.mailAuthEnabled }
+        : {}),
+      ...(mailImapHost !== undefined ? { mailImapHost } : {}),
+      ...(data.mailImapPort !== undefined ? { mailImapPort: data.mailImapPort } : {}),
+      ...(mailPop3Host !== undefined ? { mailPop3Host } : {}),
+      ...(data.mailPop3Port !== undefined ? { mailPop3Port: data.mailPop3Port } : {}),
+      ...(data.require2fa !== undefined ? { require2fa: data.require2fa } : {}),
+    },
   });
+}
+
+function normalizeMailHost(host: string | null) {
+  const trimmed = host?.trim() || null;
+  if (trimmed && isBlockedMailHost(trimmed)) {
+    throw new ValidationError('Mail host is not allowed');
+  }
+  return trimmed;
+}
+
+export function parseWorkdays(value: unknown): number[] {
+  if (!Array.isArray(value)) return [1, 2, 3, 4, 5];
+  const days = value
+    .map((n) => Number(n))
+    .filter((n) => Number.isInteger(n) && n >= 0 && n <= 6);
+  const unique = [...new Set(days)].sort((a, b) => a - b);
+  return unique.length > 0 ? unique : [1, 2, 3, 4, 5];
 }

@@ -5,8 +5,6 @@ export async function dashboardSummary(tenantId: string) {
   requireTenantId(tenantId);
   const now = new Date();
   const weekAhead = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-  const startOfDay = new Date(now);
-  startOfDay.setHours(0, 0, 0, 0);
   const endOfDay = new Date(now);
   endOfDay.setHours(23, 59, 59, 999);
 
@@ -31,7 +29,7 @@ export async function dashboardSummary(tenantId: string) {
         where: {
           tenantId,
           status: 'todo',
-          dueAt: { gte: startOfDay, lte: endOfDay },
+          dueAt: { lte: endOfDay },
         },
       }),
       prisma.company.count({ where: { tenantId, deletedAt: null } }),

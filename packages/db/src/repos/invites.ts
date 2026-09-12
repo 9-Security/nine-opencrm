@@ -2,7 +2,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import type { Role } from '@crm/shared';
 import { ROLES } from '@crm/shared';
 import { prisma } from '../client';
-import { InviteError, requireTenantId } from '../errors';
+import { InviteError, NotFoundError, requireTenantId } from '../errors';
 
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -42,13 +42,46 @@ export async function createInvite(params: {
   }
 
   const { raw, hash } = generateInviteToken();
+  const expiresAt = new Date(Date.now() + INVITE_TTL_MS);
+  const pending = await prisma.invite.findFirst({
+    where: {
+      tenantId: params.tenantId,
+      email,
+      acceptedAt: null,
+      expiresAt: { gt: new Date() },
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+  if (pending) {
+    await prisma.invite.updateMany({
+      where: {
+        tenantId: params.tenantId,
+        email,
+        acceptedAt: null,
+        id: { not: pending.id },
+        expiresAt: { gt: new Date() },
+      },
+      data: { expiresAt: new Date() },
+    });
+    const invite = await prisma.invite.update({
+      where: { id: pending.id },
+      data: {
+        role: params.role,
+        tokenHash: hash,
+        expiresAt,
+        createdByMembershipId: params.createdByMembershipId,
+      },
+    });
+    return { invite, rawToken: raw };
+  }
+
   const invite = await prisma.invite.create({
     data: {
       tenantId: params.tenantId,
       email,
       role: params.role,
       tokenHash: hash,
-      expiresAt: new Date(Date.now() + INVITE_TTL_MS),
+      expiresAt,
       createdByMembershipId: params.createdByMembershipId,
     },
   });
@@ -118,4 +151,39 @@ export async function listInvites(tenantId: string) {
       createdBy: { select: { user: { select: { email: true, name: true } } } },
     },
   });
+}
+
+export async function rotateInvite(params: {
+  tenantId: string;
+  inviteId: string;
+  createdByMembershipId: string;
+}) {
+  requireTenantId(params.tenantId);
+  const invite = await prisma.invite.findFirst({
+    where: { id: params.inviteId, tenantId: params.tenantId },
+  });
+  if (!invite) throw new NotFoundError('Invite not found');
+  if (invite.acceptedAt) {
+    throw new InviteError('Invite already used');
+  }
+  const membership = await prisma.membership.findFirst({
+    where: {
+      id: params.createdByMembershipId,
+      tenantId: params.tenantId,
+      status: 'active',
+    },
+  });
+  if (!membership) {
+    throw new InviteError('Creator membership not in tenant');
+  }
+  const { raw, hash } = generateInviteToken();
+  const updated = await prisma.invite.update({
+    where: { id: invite.id },
+    data: {
+      tokenHash: hash,
+      expiresAt: new Date(Date.now() + INVITE_TTL_MS),
+      createdByMembershipId: params.createdByMembershipId,
+    },
+  });
+  return { invite: updated, rawToken: raw };
 }

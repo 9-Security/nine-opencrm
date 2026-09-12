@@ -1,11 +1,20 @@
 'use client';
 
+import Link from 'next/link';
 import { FormEvent, use, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
+import {
+  OPPORTUNITY_STAGE_LABELS,
+  PRIORITY_LABELS,
+  type OpportunityStage,
+  type Priority,
+  type TicketStatus,
+} from '@crm/shared';
 import { PageHeader } from '@/components/app-shell';
+import { StatusBadge } from '@/components/status-badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardBody } from '@/components/ui/card';
+import { Card, CardBody, CardHeader } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -35,8 +44,30 @@ export default function CompanyDetailPage({
           website: string | null;
           phone: string | null;
           notes: string | null;
+          tags: string[];
+          contacts: Array<{
+            id: string;
+            firstName: string;
+            lastName: string;
+            email: string | null;
+          }>;
+          opportunities: Array<{
+            id: string;
+            title: string;
+            stage: OpportunityStage;
+            amount: string | null;
+          }>;
+          tickets: Array<{
+            id: string;
+            title: string;
+            status: TicketStatus;
+            priority: Priority;
+          }>;
         };
         canWrite: boolean;
+        canWriteContacts?: boolean;
+        canWriteOpportunities?: boolean;
+        canWriteTickets?: boolean;
       }>;
     },
   });
@@ -49,6 +80,9 @@ export default function CompanyDetailPage({
   }
 
   const { company, canWrite } = query.data;
+  const canWriteContacts = query.data.canWriteContacts ?? canWrite;
+  const canWriteOpportunities = query.data.canWriteOpportunities ?? canWrite;
+  const canWriteTickets = query.data.canWriteTickets ?? canWrite;
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -63,6 +97,10 @@ export default function CompanyDetailPage({
         website: form.get('website'),
         phone: form.get('phone'),
         notes: form.get('notes'),
+        tags: String(form.get('tags') ?? '')
+          .split(/[,，]/)
+          .map((t) => t.trim())
+          .filter(Boolean),
       }),
     });
     const body = await res.json().catch(() => ({}));
@@ -73,6 +111,7 @@ export default function CompanyDetailPage({
     }
     await qc.invalidateQueries({ queryKey: ['company', id] });
     await qc.invalidateQueries({ queryKey: ['companies'] });
+    await qc.invalidateQueries({ queryKey: ['tags'] });
     router.refresh();
   }
 
@@ -91,10 +130,7 @@ export default function CompanyDetailPage({
 
   return (
     <div>
-      <PageHeader
-        title={company.name}
-        description="公司詳情 · 聯絡人／商機關聯於後續 Sprint"
-      />
+      <PageHeader title={company.name} description="公司詳情、聯絡人、商機與工單" />
       <Card className="max-w-xl">
         <CardBody>
           <form onSubmit={onSubmit} className="space-y-4">
@@ -124,6 +160,16 @@ export default function CompanyDetailPage({
                 name="phone"
                 defaultValue={company.phone ?? ''}
                 disabled={!canWrite}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="tags">標籤</Label>
+              <Input
+                id="tags"
+                name="tags"
+                defaultValue={(company.tags ?? []).join(', ')}
+                disabled={!canWrite}
+                placeholder="VIP, 北區（逗號分隔）"
               />
             </div>
             <div className="space-y-1.5">
@@ -164,6 +210,99 @@ export default function CompanyDetailPage({
           </form>
         </CardBody>
       </Card>
+      <div className="mt-6 grid gap-4 md:grid-cols-3">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <h2 className="font-semibold">聯絡人</h2>
+            {canWriteContacts ? (
+              <Link
+                href={`/contacts/new?companyId=${company.id}`}
+                className="text-sm font-medium text-accent hover:underline"
+              >
+                新增
+              </Link>
+            ) : null}
+          </CardHeader>
+          <CardBody className="space-y-2 text-sm">
+            {(company.contacts ?? []).length === 0 ? (
+              <p className="text-slate-500">尚無聯絡人</p>
+            ) : (
+              company.contacts.map((c) => (
+                <Link
+                  key={c.id}
+                  href={`/contacts/${c.id}`}
+                  className="block hover:text-accent"
+                >
+                  {c.lastName}
+                  {c.firstName}
+                  {c.email ? ` · ${c.email}` : ''}
+                </Link>
+              ))
+            )}
+          </CardBody>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <h2 className="font-semibold">商機</h2>
+            {canWriteOpportunities ? (
+              <Link
+                href={`/opportunities/new?companyId=${company.id}`}
+                className="text-sm font-medium text-accent hover:underline"
+              >
+                新增
+              </Link>
+            ) : null}
+          </CardHeader>
+          <CardBody className="space-y-2 text-sm">
+            {(company.opportunities ?? []).length === 0 ? (
+              <p className="text-slate-500">尚無商機</p>
+            ) : (
+              company.opportunities.map((o) => (
+                <Link
+                  key={o.id}
+                  href={`/opportunities/${o.id}`}
+                  className="flex justify-between"
+                >
+                  <span>{o.title}</span>
+                  <StatusBadge
+                    value={o.stage}
+                    label={OPPORTUNITY_STAGE_LABELS[o.stage]}
+                  />
+                </Link>
+              ))
+            )}
+          </CardBody>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <h2 className="font-semibold">工單</h2>
+            {canWriteTickets ? (
+              <Link
+                href={`/tickets/new?companyId=${company.id}`}
+                className="text-sm font-medium text-accent hover:underline"
+              >
+                新增
+              </Link>
+            ) : null}
+          </CardHeader>
+          <CardBody className="space-y-2 text-sm">
+            {(company.tickets ?? []).length === 0 ? (
+              <p className="text-slate-500">尚無工單</p>
+            ) : (
+              company.tickets.map((t) => (
+                <Link
+                  key={t.id}
+                  href={`/tickets/${t.id}`}
+                  className="flex justify-between"
+                >
+                  <span>{t.title}</span>
+                  <StatusBadge value={t.priority} label={PRIORITY_LABELS[t.priority]} />
+                </Link>
+              ))
+            )}
+          </CardBody>
+        </Card>
+      </div>
     </div>
   );
 }

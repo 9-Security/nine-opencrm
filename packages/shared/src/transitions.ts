@@ -80,3 +80,17 @@ export function assertScheduleTransition(from: ScheduleStatus, to: ScheduleStatu
 export function assertActivityTransition(from: ActivityStatus, to: ActivityStatus): void {
   assertEdge('activity', ACTIVITY_TRANSITIONS, from, to);
 }
+
+export function allowedOpportunityTransitions(
+  from: OpportunityStage,
+): OpportunityStage[] {
+  return [...OPPORTUNITY_TRANSITIONS[from]];
+}
+
+export function allowedTicketTransitions(from: TicketStatus): TicketStatus[] {
+  return [...TICKET_TRANSITIONS[from]];
+}
+
+export function allowedScheduleTransitions(from: ScheduleStatus): ScheduleStatus[] {
+  return [...SCHEDULE_TRANSITIONS[from]];
+}

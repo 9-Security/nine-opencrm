@@ -66,6 +66,13 @@ model Tenant {
   slug      String   @unique
   timezone  String   @default("Asia/Taipei")
   workdays  Json     @default("[1,2,3,4,5]")
+  /// Allow members to log in by authenticating against IMAPS/POP3S.
+  mailAuthEnabled Boolean @default(false)
+  mailImapHost    String?
+  mailImapPort    Int     @default(993)
+  mailPop3Host    String?
+  mailPop3Port    Int     @default(995)
+  require2fa      Boolean @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -85,14 +92,33 @@ model Tenant {
 }
 
 model User {
-  id           String   @id @default(cuid())
-  email        String   @unique
-  name         String?
-  passwordHash String
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id               String    @id @default(cuid())
+  email            String    @unique
+  name             String?
+  passwordHash     String
+  totpSecretEnc    String?
+  totpEnabled      Boolean   @default(false)
+  totpBackupHashes String[]  @default([])
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
-  memberships Membership[]
+  memberships     Membership[]
+  loginChallenges LoginChallenge[]
+}
+
+model LoginChallenge {
+  id           String    @id @default(cuid())
+  userId       String
+  tokenHash    String    @unique
+  firstFactor  String
+  totpVerified Boolean   @default(false)
+  expiresAt    DateTime
+  consumedAt   DateTime?
+  createdAt    DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model Membership {
@@ -353,4 +379,10 @@ model StatusEvent {
   actor  Membership? @relation(fields: [actorMembershipId], references: [id], onDelete: SetNull)
 
   @@index([tenantId, entityType, entityId])
+}
+
+model RateLimitBucket {
+  key     String   @id
+  count   Int
+  resetAt DateTime
 }

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import { InviteError, invitesRepo, prisma } from '@crm/db';
+import { InviteError, NotFoundError, invitesRepo, prisma } from '@crm/db';
 import { createTenantUser } from './helpers';
 
 describe('invites', () => {
@@ -52,6 +52,48 @@ describe('invites', () => {
     });
   });
 
+  it('rotates a pending invite so the old token stops working', async () => {
+    const admin = await createTenantUser('admin');
+    const email = `rotate-${randomUUID().slice(0, 8)}@test.local`;
+    const created = await invitesRepo.createInvite({
+      tenantId: admin.tenant.id,
+      email,
+      role: 'sales',
+      createdByMembershipId: admin.membership.id,
+    });
+    const rotated = await invitesRepo.rotateInvite({
+      tenantId: admin.tenant.id,
+      inviteId: created.invite.id,
+      createdByMembershipId: admin.membership.id,
+    });
+    const user = await prisma.user.create({
+      data: { email, name: 'Rotate', passwordHash: 'x' },
+    });
+    await expect(
+      invitesRepo.acceptInvite(created.rawToken, user.id),
+    ).rejects.toBeInstanceOf(InviteError);
+    const accepted = await invitesRepo.acceptInvite(rotated.rawToken, user.id);
+    expect(accepted.membership.role).toBe('sales');
+  });
+
+  it('does not rotate invites from another tenant', async () => {
+    const a = await createTenantUser('admin');
+    const b = await createTenantUser('admin');
+    const created = await invitesRepo.createInvite({
+      tenantId: a.tenant.id,
+      email: `iso-${randomUUID().slice(0, 8)}@test.local`,
+      role: 'sales',
+      createdByMembershipId: a.membership.id,
+    });
+    await expect(
+      invitesRepo.rotateInvite({
+        tenantId: b.tenant.id,
+        inviteId: created.invite.id,
+        createdByMembershipId: b.membership.id,
+      }),
+    ).rejects.toBeInstanceOf(NotFoundError);
+  });
+
   it('rejects creator membership from another tenant', async () => {
     const a = await createTenantUser('admin');
     const b = await createTenantUser('admin');
@@ -63,5 +105,41 @@ describe('invites', () => {
         createdByMembershipId: b.membership.id,
       }),
     ).rejects.toBeInstanceOf(InviteError);
+  });
+
+  it('keeps a single pending invite per tenant email', async () => {
+    const admin = await createTenantUser('admin');
+    const email = `once-${randomUUID().slice(0, 8)}@test.local`;
+    const first = await invitesRepo.createInvite({
+      tenantId: admin.tenant.id,
+      email,
+      role: 'sales',
+      createdByMembershipId: admin.membership.id,
+    });
+    const second = await invitesRepo.createInvite({
+      tenantId: admin.tenant.id,
+      email,
+      role: 'support',
+      createdByMembershipId: admin.membership.id,
+    });
+    expect(second.invite.id).toBe(first.invite.id);
+    expect(second.invite.role).toBe('support');
+    const pending = await prisma.invite.count({
+      where: {
+        tenantId: admin.tenant.id,
+        email,
+        acceptedAt: null,
+        expiresAt: { gt: new Date() },
+      },
+    });
+    expect(pending).toBe(1);
+    const user = await prisma.user.create({
+      data: { email, name: 'Once', passwordHash: 'x' },
+    });
+    await expect(
+      invitesRepo.acceptInvite(first.rawToken, user.id),
+    ).rejects.toBeInstanceOf(InviteError);
+    const accepted = await invitesRepo.acceptInvite(second.rawToken, user.id);
+    expect(accepted.membership.role).toBe('support');
   });
 });

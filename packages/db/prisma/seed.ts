@@ -67,6 +67,8 @@ async function main() {
   const tenantIds = { in: [acme.id, beta.id] };
   await prisma.ticketScheduleLink.deleteMany({ where: { tenantId: tenantIds } });
   await prisma.statusEvent.deleteMany({ where: { tenantId: tenantIds } });
+  await prisma.tagging.deleteMany({ where: { tenantId: tenantIds } });
+  await prisma.tag.deleteMany({ where: { tenantId: tenantIds } });
   await prisma.activity.deleteMany({ where: { tenantId: tenantIds } });
   await prisma.opportunity.deleteMany({ where: { tenantId: tenantIds } });
   await prisma.ticketComment.deleteMany({ where: { tenantId: tenantIds } });
@@ -84,6 +86,28 @@ async function main() {
       notes: '種子客戶（Acme）',
       ownerMembershipId: acmeAdmin.id,
     },
+  });
+  const vip = await prisma.tag.create({
+    data: { tenantId: acme.id, name: 'VIP' },
+  });
+  const northTag = await prisma.tag.create({
+    data: { tenantId: acme.id, name: '北區' },
+  });
+  await prisma.tagging.createMany({
+    data: [
+      {
+        tenantId: acme.id,
+        tagId: vip.id,
+        entityType: 'company',
+        entityId: north.id,
+      },
+      {
+        tenantId: acme.id,
+        tagId: northTag.id,
+        entityType: 'company',
+        entityId: north.id,
+      },
+    ],
   });
   await prisma.company.create({
     data: {
@@ -157,6 +181,59 @@ async function main() {
       amount: 480000,
       stage: 'negotiating',
       companyId: north.id,
+      ownerMembershipId: acmeAdmin.id,
+    },
+  });
+
+  const contact = await prisma.contact.create({
+    data: {
+      tenantId: acme.id,
+      companyId: north.id,
+      firstName: '美玲',
+      lastName: '王',
+      email: 'mei.wang@northstar.example',
+      phone: '0912-000-111',
+      ownerMembershipId: acmeAdmin.id,
+    },
+  });
+  await prisma.contact.create({
+    data: {
+      tenantId: beta.id,
+      firstName: '隔離',
+      lastName: '測試',
+      email: 'hidden@beta.example',
+    },
+  });
+
+  await prisma.ticketComment.create({
+    data: {
+      tenantId: acme.id,
+      ticketId: ticket.id,
+      authorMembershipId: acmeAdmin.id,
+      body: '已請門市重開機，仍無法登入。',
+      isInternal: false,
+    },
+  });
+  await prisma.ticketComment.create({
+    data: {
+      tenantId: acme.id,
+      ticketId: ticket.id,
+      authorMembershipId: acmeAdmin.id,
+      body: '內部：疑似授權檔過期。',
+      isInternal: true,
+    },
+  });
+
+  const due = new Date();
+  due.setHours(16, 0, 0, 0);
+  await prisma.activity.create({
+    data: {
+      tenantId: acme.id,
+      title: '回訪北極星採購',
+      status: 'todo',
+      dueAt: due,
+      companyId: north.id,
+      contactId: contact.id,
       ownerMembershipId: acmeAdmin.id,
     },
   });

@@ -116,7 +116,13 @@ export default function InvitePage() {
                 </div>
                 <div className="space-y-1.5">
                   <Label>Email</Label>
-                  <Input name="email" type="email" defaultValue={info.email} required />
+                  <Input
+                    name="email"
+                    type="email"
+                    defaultValue={info.email}
+                    readOnly
+                    required
+                  />
                 </div>
                 <div className="space-y-1.5">
                   <Label>密碼</Label>
