@@ -206,6 +206,32 @@ describe('tickets', () => {
     ]);
   });
 
+  it('createScheduleAndLink writes schedule and link together', async () => {
+    const a = await createTenantUser('admin');
+    const ticket = await ticketsRepo.createTicket(a.tenant.id, 'admin', { title: 'T' });
+    const { link, warnings } = await ticketsRepo.createScheduleAndLink(
+      a.tenant.id,
+      'admin',
+      a.membership.id,
+      ticket.id,
+      {
+        title: 'Linked visit',
+        startAt: new Date('2030-07-01T10:00:00Z'),
+        endAt: new Date('2030-07-01T11:00:00Z'),
+      },
+    );
+    expect(warnings).toEqual([]);
+    expect(link.schedule.title).toBe('Linked visit');
+    const loaded = await ticketsRepo.getTicketOrThrow(
+      a.tenant.id,
+      ticket.id,
+      'admin',
+      a.membership.id,
+    );
+    expect(loaded.scheduleLinks).toHaveLength(1);
+    expect(loaded.scheduleLinks[0]?.scheduleId).toBe(link.scheduleId);
+  });
+
   it('engineering default list is unassigned plus mine', async () => {
     const admin = await createTenantUser('admin');
     const eng = await createTenantUser('engineering', { tenantId: admin.tenant.id });

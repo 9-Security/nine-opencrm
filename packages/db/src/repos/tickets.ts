@@ -13,7 +13,7 @@ import {
   requireTenantId,
 } from '../errors';
 import { runAtomicTransition } from './atomic-transition';
-import * as schedulesRepo from './schedules';
+import { prepareCreate, type ScheduleInput } from './schedules';
 import { assertOptionalRelations, assertScheduleInTenant } from './tenant-guard';
 
 export type TicketInput = {
@@ -287,12 +287,12 @@ export async function createScheduleAndLink(
   role: Role,
   membershipId: string,
   ticketId: string,
-  input: schedulesRepo.ScheduleInput,
+  input: ScheduleInput,
 ) {
   requireTenantId(tenantId);
   assertWrite(role);
   await getTicketOrThrow(tenantId, ticketId, role, membershipId);
-  const prepared = await schedulesRepo.prepareCreate(tenantId, role, membershipId, input);
+  const prepared = await prepareCreate(tenantId, role, membershipId, input);
   return prisma.$transaction(async (tx) => {
     const schedule = await tx.schedule.create({
       data: prepared.data,
