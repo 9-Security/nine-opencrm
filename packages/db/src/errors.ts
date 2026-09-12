@@ -19,6 +19,13 @@ export class ForbiddenError extends Error {
   }
 }
 
+export class UnauthorizedError extends Error {
+  constructor(message = 'Unauthorized') {
+    super(message);
+    this.name = 'UnauthorizedError';
+  }
+}
+
 export class InviteError extends Error {
   constructor(message: string) {
     super(message);

@@ -15,3 +15,5 @@ export * as listsRepo from './repos/lists';
 export * from './repos/tenant-guard';
 export * from './mail-auth';
 export * from './totp';
+export * from './secret-box';
+export * from './rate-limit';

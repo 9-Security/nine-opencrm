@@ -25,6 +25,7 @@ function AccountSecurityForm() {
   const [qr, setQr] = useState<string | null>(null);
   const [backupCodes, setBackupCodes] = useState<string[] | null>(null);
   const [pending, setPending] = useState(false);
+  const [currentCode, setCurrentCode] = useState('');
 
   const status = useQuery({
     queryKey: ['account-2fa'],
@@ -35,9 +36,13 @@ function AccountSecurityForm() {
     },
   });
 
-  async function startEnroll() {
+  async function startEnroll(code?: string) {
     setPending(true);
-    const res = await fetch('/api/account/2fa', { method: 'POST' });
+    const res = await fetch('/api/account/2fa', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(code ? { currentCode: code } : {}),
+    });
     const body = await res.json().catch(() => ({}));
     setPending(false);
     if (!res.ok) {
@@ -55,7 +60,10 @@ function AccountSecurityForm() {
     const res = await fetch('/api/account/2fa', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code: form.get('code') }),
+      body: JSON.stringify({
+        code: form.get('code'),
+        currentCode: currentCode || undefined,
+      }),
     });
     const body = await res.json().catch(() => ({}));
     setPending(false);
@@ -113,9 +121,28 @@ function AccountSecurityForm() {
             {mustKeep ? '（租戶強制）' : ''}
           </p>
           {!enabled && !qr ? (
-            <Button type="button" onClick={startEnroll} disabled={pending}>
+            <Button type="button" onClick={() => void startEnroll()} disabled={pending}>
               開始綁定
             </Button>
+          ) : null}
+          {enabled && !qr ? (
+            <form
+              className="space-y-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                const code = String(
+                  new FormData(e.currentTarget).get('currentCode') ?? '',
+                );
+                setCurrentCode(code);
+                void startEnroll(code);
+              }}
+            >
+              <Label>輸入目前驗證碼以重新綁定</Label>
+              <Input name="currentCode" required autoComplete="one-time-code" />
+              <Button type="submit" variant="secondary" disabled={pending}>
+                重新綁定驗證器
+              </Button>
+            </form>
           ) : null}
           {qr ? (
             <form onSubmit={confirm} className="space-y-3">
@@ -144,7 +171,7 @@ function AccountSecurityForm() {
               </ul>
             </div>
           ) : null}
-          {enabled && !mustKeep ? (
+          {enabled && !mustKeep && !qr ? (
             <form onSubmit={disable} className="space-y-2">
               <Label>輸入驗證碼以關閉 2FA</Label>
               <Input name="code" required autoComplete="one-time-code" />

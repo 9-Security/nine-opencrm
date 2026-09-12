@@ -1,7 +1,13 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { canAccessSettings } from '@crm/shared';
-import { ForbiddenError, invitesRepo, prisma, tenantsRepo } from '@crm/db';
+import {
+  ForbiddenError,
+  invitesRepo,
+  isBlockedMailHost,
+  prisma,
+  tenantsRepo,
+} from '@crm/db';
 import { apiError, loadApiTenant } from '@/lib/api';
 import { getSessionUser } from '@/lib/tenant';
 import { setTenantCookie } from '@/lib/tenant-cookie';
@@ -13,7 +19,8 @@ const hostSchema = z
   .regex(/^[A-Za-z0-9.-]*$/)
   .max(253)
   .optional()
-  .nullable();
+  .nullable()
+  .refine((value) => !value || !isBlockedMailHost(value), 'Mail host is not allowed');
 
 const patchSchema = z.object({
   name: z.string().min(1).optional(),

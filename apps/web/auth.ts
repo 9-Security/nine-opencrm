@@ -15,27 +15,27 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         challenge: { label: 'Challenge', type: 'text' },
       },
       async authorize(credentials) {
-        const ticket = await readLoginChallengeCookie();
-        if (ticket) {
-          const user = await authRepo.consumeLoginChallenge(ticket);
-          if (user) {
-            await clearLoginChallengeCookie();
-            return { id: user.id, email: user.email, name: user.name };
-          }
-        }
         const email = String(credentials?.email ?? '')
           .trim()
           .toLowerCase();
         const password = String(credentials?.password ?? '');
-        if (!email || !password) return null;
-        const result = await authRepo.verifyFirstFactor(email, password);
-        if (!result) return null;
-        if (result.user.totpEnabled) return null;
-        return {
-          id: result.user.id,
-          email: result.user.email,
-          name: result.user.name,
-        };
+        if (email && password) {
+          const leftover = await readLoginChallengeCookie();
+          if (leftover) {
+            await authRepo.invalidateLoginChallenge(leftover);
+            await clearLoginChallengeCookie();
+          }
+          const user = await authRepo.completePasswordLogin(email, password);
+          if (!user) return null;
+          return { id: user.id, email: user.email, name: user.name };
+        }
+
+        const ticket = await readLoginChallengeCookie();
+        if (!ticket) return null;
+        const user = await authRepo.consumeLoginChallenge(ticket);
+        if (!user) return null;
+        await clearLoginChallengeCookie();
+        return { id: user.id, email: user.email, name: user.name };
       },
     }),
   ],

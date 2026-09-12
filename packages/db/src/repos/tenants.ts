@@ -1,6 +1,7 @@
 import { hash } from 'bcryptjs';
 import { prisma } from '../client';
-import { ForbiddenError } from '../errors';
+import { ForbiddenError, ValidationError } from '../errors';
+import { isBlockedMailHost } from '../mail-auth';
 
 function slugify(name: string): string {
   const base = name
@@ -116,6 +117,11 @@ export async function updateTenantSettings(
     require2fa?: boolean;
   },
 ) {
+  const mailImapHost =
+    data.mailImapHost === undefined ? undefined : normalizeMailHost(data.mailImapHost);
+  const mailPop3Host =
+    data.mailPop3Host === undefined ? undefined : normalizeMailHost(data.mailPop3Host);
+
   return prisma.tenant.update({
     where: { id: tenantId },
     data: {
@@ -125,17 +131,21 @@ export async function updateTenantSettings(
       ...(data.mailAuthEnabled !== undefined
         ? { mailAuthEnabled: data.mailAuthEnabled }
         : {}),
-      ...(data.mailImapHost !== undefined
-        ? { mailImapHost: data.mailImapHost?.trim() || null }
-        : {}),
+      ...(mailImapHost !== undefined ? { mailImapHost } : {}),
       ...(data.mailImapPort !== undefined ? { mailImapPort: data.mailImapPort } : {}),
-      ...(data.mailPop3Host !== undefined
-        ? { mailPop3Host: data.mailPop3Host?.trim() || null }
-        : {}),
+      ...(mailPop3Host !== undefined ? { mailPop3Host } : {}),
       ...(data.mailPop3Port !== undefined ? { mailPop3Port: data.mailPop3Port } : {}),
       ...(data.require2fa !== undefined ? { require2fa: data.require2fa } : {}),
     },
   });
+}
+
+function normalizeMailHost(host: string | null) {
+  const trimmed = host?.trim() || null;
+  if (trimmed && isBlockedMailHost(trimmed)) {
+    throw new ValidationError('Mail host is not allowed');
+  }
+  return trimmed;
 }
 
 export function parseWorkdays(value: unknown): number[] {

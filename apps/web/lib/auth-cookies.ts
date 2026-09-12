@@ -1,4 +1,5 @@
 import { cookies } from 'next/headers';
+import { decryptSecret, encryptSecret } from '@crm/db';
 
 export const LOGIN_CHALLENGE_COOKIE = 'crm-login-challenge';
 export const TOTP_ENROLL_COOKIE = 'crm-2fa-enroll';
@@ -26,7 +27,7 @@ export async function readLoginChallengeCookie() {
 
 export async function setTotpEnrollCookie(secret: string) {
   const jar = await cookies();
-  jar.set(TOTP_ENROLL_COOKIE, secret, {
+  jar.set(TOTP_ENROLL_COOKIE, encryptSecret(secret), {
     httpOnly: true,
     sameSite: 'lax',
     path: '/',
@@ -37,7 +38,13 @@ export async function setTotpEnrollCookie(secret: string) {
 
 export async function readTotpEnrollCookie() {
   const jar = await cookies();
-  return jar.get(TOTP_ENROLL_COOKIE)?.value ?? null;
+  const raw = jar.get(TOTP_ENROLL_COOKIE)?.value;
+  if (!raw) return null;
+  try {
+    return decryptSecret(raw);
+  } catch {
+    return null;
+  }
 }
 
 export async function clearTotpEnrollCookie() {

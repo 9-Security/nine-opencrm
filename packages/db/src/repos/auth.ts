@@ -1,8 +1,19 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { compare } from 'bcryptjs';
 import { prisma } from '../client';
-import { ForbiddenError, NotFoundError, ValidationError } from '../errors';
-import { envMailTargets, mailAuthenticator, type MailTarget } from '../mail-auth';
+import {
+  ForbiddenError,
+  NotFoundError,
+  UnauthorizedError,
+  ValidationError,
+} from '../errors';
+import {
+  envMailTargets,
+  filterMailTargets,
+  isBlockedMailHost,
+  mailAuthenticator,
+  type MailTarget,
+} from '../mail-auth';
 import { decryptSecret, encryptSecret } from '../secret-box';
 import {
   consumeBackupCode,
@@ -12,6 +23,7 @@ import {
 } from '../totp';
 
 const CHALLENGE_TTL_MS = 5 * 60 * 1000;
+const UNKNOWN_USER_HASH = '$2b$10$Dsn1/po2ZILJSrlTnD.94e/BQrYPVXk4v6GUGWU2xxQuYaR5iKAmm';
 
 export type FirstFactor = 'password' | 'imap' | 'pop3';
 
@@ -28,14 +40,14 @@ function tenantTargets(tenant: {
 }): MailTarget[] {
   if (!tenant.mailAuthEnabled) return [];
   const targets: MailTarget[] = [];
-  if (tenant.mailImapHost?.trim()) {
+  if (tenant.mailImapHost?.trim() && !isBlockedMailHost(tenant.mailImapHost)) {
     targets.push({
       protocol: 'imap',
       host: tenant.mailImapHost.trim(),
       port: tenant.mailImapPort || 993,
     });
   }
-  if (tenant.mailPop3Host?.trim()) {
+  if (tenant.mailPop3Host?.trim() && !isBlockedMailHost(tenant.mailPop3Host)) {
     targets.push({
       protocol: 'pop3',
       host: tenant.mailPop3Host.trim(),
@@ -68,23 +80,22 @@ export async function verifyFirstFactor(email: string, password: string) {
       },
     },
   });
-  if (!user) return null;
+  if (!user) {
+    await compare(password, UNKNOWN_USER_HASH);
+    return null;
+  }
 
   const passwordOk = await compare(password, user.passwordHash);
   if (passwordOk) {
     return { user, firstFactor: 'password' as const };
   }
 
-  const targets: MailTarget[] = [...envMailTargets()];
-  for (const membership of user.memberships) {
-    targets.push(...tenantTargets(membership.tenant));
-  }
-  const seen = new Set<string>();
+  const targets = filterMailTargets([
+    ...envMailTargets(),
+    ...user.memberships.flatMap((membership) => tenantTargets(membership.tenant)),
+  ]);
   const auth = mailAuthenticator();
   for (const target of targets) {
-    const key = `${target.protocol}:${target.host}:${target.port}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
     const ok = await auth({
       ...target,
       username: normalized,
@@ -100,11 +111,16 @@ export async function verifyFirstFactor(email: string, password: string) {
   return null;
 }
 
+export async function completePasswordLogin(email: string, password: string) {
+  const result = await verifyFirstFactor(email, password);
+  if (!result) return null;
+  if (result.user.totpEnabled) return null;
+  return result.user;
+}
+
 export async function createLoginChallenge(userId: string, firstFactor: FirstFactor) {
   const raw = randomBytes(32).toString('hex');
-  await prisma.loginChallenge.deleteMany({
-    where: { userId, expiresAt: { lt: new Date() } },
-  });
+  await prisma.loginChallenge.deleteMany({ where: { userId } });
   await prisma.loginChallenge.create({
     data: {
       userId,
@@ -114,6 +130,13 @@ export async function createLoginChallenge(userId: string, firstFactor: FirstFac
     },
   });
   return raw;
+}
+
+export async function invalidateLoginChallenge(rawToken: string) {
+  await prisma.loginChallenge.updateMany({
+    where: { tokenHash: hashToken(rawToken), consumedAt: null },
+    data: { consumedAt: new Date() },
+  });
 }
 
 export async function getChallengeUser(rawToken: string) {
@@ -127,22 +150,41 @@ export async function getChallengeUser(rawToken: string) {
 }
 
 export async function markChallengeTotpVerified(rawToken: string) {
-  const row = await getChallengeUser(rawToken);
-  if (!row) throw new NotFoundError('Login challenge expired');
-  await prisma.loginChallenge.update({
-    where: { id: row.id },
+  const tokenHash = hashToken(rawToken);
+  const updated = await prisma.loginChallenge.updateMany({
+    where: {
+      tokenHash,
+      consumedAt: null,
+      expiresAt: { gt: new Date() },
+    },
     data: { totpVerified: true },
   });
+  if (updated.count !== 1) {
+    throw new UnauthorizedError('Login challenge expired');
+  }
 }
 
 export async function consumeLoginChallenge(rawToken: string) {
-  const row = await getChallengeUser(rawToken);
-  if (!row) return null;
+  const tokenHash = hashToken(rawToken);
+  const row = await prisma.loginChallenge.findUnique({
+    where: { tokenHash },
+    include: { user: true },
+  });
+  if (!row || row.consumedAt) return null;
+  if (row.expiresAt.getTime() < Date.now()) return null;
   if (row.user.totpEnabled && !row.totpVerified) return null;
-  await prisma.loginChallenge.update({
-    where: { id: row.id },
+
+  const consumed = await prisma.loginChallenge.updateMany({
+    where: {
+      id: row.id,
+      tokenHash,
+      consumedAt: null,
+      expiresAt: { gt: new Date() },
+      ...(row.user.totpEnabled ? { totpVerified: true } : {}),
+    },
     data: { consumedAt: new Date() },
   });
+  if (consumed.count !== 1) return null;
   return row.user;
 }
 
@@ -154,9 +196,23 @@ export function userRequiresTwoFactor(user: {
   return Boolean(user.memberships?.some((m) => m.tenant.require2fa));
 }
 
+export function isAccountTwoFactorApi(pathname: string) {
+  return pathname === '/api/account/2fa' || pathname.startsWith('/api/account/2fa/');
+}
+
+export function apiBlockedForMissing2fa(params: {
+  require2fa: boolean;
+  totpEnabled: boolean;
+  pathname: string;
+}) {
+  return (
+    params.require2fa && !params.totpEnabled && !isAccountTwoFactorApi(params.pathname)
+  );
+}
+
 export async function verifySecondFactor(rawToken: string, code: string) {
   const row = await getChallengeUser(rawToken);
-  if (!row) throw new NotFoundError('Login challenge expired');
+  if (!row) throw new UnauthorizedError('Login challenge expired');
   if (!row.user.totpEnabled) {
     throw new ValidationError('Two-factor authentication is not enabled');
   }
@@ -181,11 +237,34 @@ export function beginTotpEnrollment(email: string) {
   return generateTotpSecret(email);
 }
 
+export async function verifyCurrentTwoFactorIfEnabled(
+  userId: string,
+  code: string | undefined,
+) {
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user?.totpEnabled) return;
+  if (!code) {
+    throw new ValidationError('Current authentication code is required');
+  }
+  const secret = user.totpSecretEnc ? decryptSecret(user.totpSecretEnc) : '';
+  if (secret && verifyTotpCode(secret, code)) return;
+  const remaining = await consumeBackupCode(user.totpBackupHashes, code);
+  if (!remaining) {
+    throw new ValidationError('Invalid authentication code');
+  }
+  await prisma.user.update({
+    where: { id: userId },
+    data: { totpBackupHashes: remaining },
+  });
+}
+
 export async function confirmTotpEnrollment(
   userId: string,
   secret: string,
   code: string,
+  currentCode?: string,
 ) {
+  await verifyCurrentTwoFactorIfEnabled(userId, currentCode);
   if (!verifyTotpCode(secret, code)) {
     throw new ValidationError('Invalid authentication code');
   }

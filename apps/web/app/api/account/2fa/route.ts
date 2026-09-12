@@ -9,7 +9,13 @@ import {
   setTotpEnrollCookie,
 } from '@/lib/auth-cookies';
 
-const confirmSchema = z.object({ code: z.string().min(6).max(20) });
+const confirmSchema = z.object({
+  code: z.string().min(6).max(20),
+  currentCode: z.string().min(6).max(20).optional(),
+});
+const startSchema = z.object({
+  currentCode: z.string().min(6).max(20).optional(),
+});
 
 export async function GET() {
   try {
@@ -21,9 +27,11 @@ export async function GET() {
   }
 }
 
-export async function POST() {
+export async function POST(req: Request) {
   try {
     const ctx = await loadApiTenant();
+    const body = startSchema.parse(await readJson(req));
+    await authRepo.verifyCurrentTwoFactorIfEnabled(ctx.userId, body.currentCode);
     const started = authRepo.beginTotpEnrollment(ctx.email);
     await setTotpEnrollCookie(started.secret);
     const qrDataUrl = await QRCode.toDataURL(started.otpauthUrl, {
@@ -35,6 +43,9 @@ export async function POST() {
       qrDataUrl,
     });
   } catch (err) {
+    if (err instanceof z.ZodError) {
+      return NextResponse.json({ error: 'Invalid input' }, { status: 400 });
+    }
     return apiError(err);
   }
 }
@@ -51,6 +62,7 @@ export async function PUT(req: Request) {
       ctx.userId,
       secret,
       body.code,
+      body.currentCode,
     );
     await clearTotpEnrollCookie();
     return NextResponse.json({ backupCodes });
@@ -74,4 +86,10 @@ export async function DELETE(req: Request) {
     }
     return apiError(err);
   }
+}
+
+async function readJson(req: Request) {
+  const text = await req.text();
+  if (!text.trim()) return {};
+  return JSON.parse(text) as unknown;
 }

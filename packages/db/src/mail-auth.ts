@@ -1,5 +1,7 @@
 import { connect as tlsConnect } from 'node:tls';
 import { once } from 'node:events';
+import { BlockList, isIP } from 'node:net';
+import { lookup } from 'node:dns/promises';
 
 export type MailProtocol = 'imap' | 'pop3';
 
@@ -15,6 +17,106 @@ export type MailAuthRequest = MailTarget & {
 };
 
 const DEFAULT_TIMEOUT_MS = 8_000;
+const MAX_MAIL_TARGETS = 3;
+
+const blockedNets = new BlockList();
+blockedNets.addSubnet('0.0.0.0', 8, 'ipv4');
+blockedNets.addSubnet('10.0.0.0', 8, 'ipv4');
+blockedNets.addSubnet('100.64.0.0', 10, 'ipv4');
+blockedNets.addSubnet('127.0.0.0', 8, 'ipv4');
+blockedNets.addSubnet('169.254.0.0', 16, 'ipv4');
+blockedNets.addSubnet('172.16.0.0', 12, 'ipv4');
+blockedNets.addSubnet('192.0.0.0', 24, 'ipv4');
+blockedNets.addSubnet('192.168.0.0', 16, 'ipv4');
+blockedNets.addSubnet('198.18.0.0', 15, 'ipv4');
+blockedNets.addSubnet('224.0.0.0', 4, 'ipv4');
+blockedNets.addAddress('::1', 'ipv6');
+blockedNets.addAddress('::', 'ipv6');
+blockedNets.addSubnet('fc00::', 7, 'ipv6');
+blockedNets.addSubnet('fe80::', 10, 'ipv6');
+blockedNets.addSubnet('ff00::', 8, 'ipv6');
+
+const BLOCKED_HOSTNAMES = new Set([
+  'localhost',
+  'localhost.localdomain',
+  'metadata.google.internal',
+  'metadata.google.com',
+  'instance-data',
+]);
+
+function allowPrivateMailHosts() {
+  return process.env.MAIL_AUTH_ALLOW_PRIVATE === 'true';
+}
+
+function normalizeHost(host: string) {
+  return host
+    .trim()
+    .toLowerCase()
+    .replace(/^\[|\]$/g, '')
+    .replace(/\.$/, '');
+}
+
+export function stripMailCredential(value: string) {
+  return value.replace(/[\0\r\n]/g, '');
+}
+
+export function isBlockedIp(address: string) {
+  const type = isIP(address);
+  if (type === 4) return blockedNets.check(address, 'ipv4');
+  if (type === 6) {
+    const lower = address.toLowerCase();
+    const mapped = lower.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
+    if (mapped?.[1]) return blockedNets.check(mapped[1], 'ipv4');
+    return blockedNets.check(address, 'ipv6');
+  }
+  return true;
+}
+
+export function isBlockedMailHost(host: string) {
+  const normalized = normalizeHost(host);
+  if (!normalized) return false;
+  if (BLOCKED_HOSTNAMES.has(normalized)) return true;
+  if (
+    normalized.endsWith('.localhost') ||
+    normalized.endsWith('.local') ||
+    normalized.endsWith('.internal')
+  ) {
+    return true;
+  }
+  if (isIP(normalized)) return isBlockedIp(normalized);
+  return false;
+}
+
+export async function mailHostIsSafe(host: string): Promise<boolean> {
+  if (allowPrivateMailHosts()) return true;
+  const normalized = normalizeHost(host);
+  if (!normalized) return false;
+  if (isBlockedMailHost(normalized)) return false;
+  if (isIP(normalized)) return true;
+  try {
+    const addrs = await lookup(normalized, { all: true });
+    if (addrs.length === 0) return false;
+    return !addrs.some((entry) => isBlockedIp(entry.address));
+  } catch {
+    return false;
+  }
+}
+
+export function filterMailTargets(targets: MailTarget[]): MailTarget[] {
+  const seen = new Set<string>();
+  const out: MailTarget[] = [];
+  for (const target of targets) {
+    const host = target.host.trim();
+    if (!host) continue;
+    if (!allowPrivateMailHosts() && isBlockedMailHost(host)) continue;
+    const key = `${target.protocol}:${host.toLowerCase()}:${target.port}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ ...target, host });
+    if (out.length >= MAX_MAIL_TARGETS) break;
+  }
+  return out;
+}
 
 function tlsInsecure() {
   return process.env.MAIL_AUTH_TLS_INSECURE === 'true';
@@ -95,11 +197,15 @@ async function withTls<T>(
 }
 
 export async function authenticateImaps(req: MailAuthRequest): Promise<boolean> {
+  if (!(await mailHostIsSafe(req.host))) return false;
+  const username = stripMailCredential(req.username);
+  const password = stripMailCredential(req.password);
+  if (!username || !password) return false;
   try {
     return await withTls(req, async (reader, write) => {
       const greet = await reader.readLine(DEFAULT_TIMEOUT_MS);
       if (!greet.startsWith('*')) return false;
-      write(`a1 LOGIN ${imapQuote(req.username)} ${imapQuote(req.password)}\r\n`);
+      write(`a1 LOGIN ${imapQuote(username)} ${imapQuote(password)}\r\n`);
       for (;;) {
         const line = await reader.readLine(DEFAULT_TIMEOUT_MS);
         if (line.startsWith('a1 ')) {
@@ -113,14 +219,18 @@ export async function authenticateImaps(req: MailAuthRequest): Promise<boolean> 
 }
 
 export async function authenticatePop3s(req: MailAuthRequest): Promise<boolean> {
+  if (!(await mailHostIsSafe(req.host))) return false;
+  const username = stripMailCredential(req.username);
+  const password = stripMailCredential(req.password);
+  if (!username || !password) return false;
   try {
     return await withTls(req, async (reader, write) => {
       const greet = await reader.readLine(DEFAULT_TIMEOUT_MS);
       if (!greet.startsWith('+OK')) return false;
-      write(`USER ${req.username}\r\n`);
+      write(`USER ${username}\r\n`);
       const userRes = await reader.readLine(DEFAULT_TIMEOUT_MS);
       if (!userRes.startsWith('+OK')) return false;
-      write(`PASS ${req.password}\r\n`);
+      write(`PASS ${password}\r\n`);
       const passRes = await reader.readLine(DEFAULT_TIMEOUT_MS);
       write('QUIT\r\n');
       return passRes.startsWith('+OK');

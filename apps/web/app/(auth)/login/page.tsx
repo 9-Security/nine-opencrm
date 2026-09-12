@@ -49,8 +49,7 @@ export default function LoginPage() {
       setError(body.error ?? 'Email 或密碼不正確');
       return;
     }
-    if (body.firstFactor === 'imap') setFactorHint('已通過 IMAPS 信箱認證');
-    if (body.firstFactor === 'pop3') setFactorHint('已通過 POP3S 信箱認證');
+    if (body.mailboxAuth) setFactorHint('已通過公司信箱認證');
     if (body.requires2fa) {
       setPending(false);
       setStep('totp');
@@ -121,9 +120,11 @@ export default function LoginPage() {
           <button
             type="button"
             className="w-full text-sm text-slate-500 hover:text-slate-700"
-            onClick={() => {
+            onClick={async () => {
+              await fetch('/api/auth/first-factor', { method: 'DELETE' });
               setStep('password');
               setError(null);
+              setFactorHint(null);
             }}
           >
             改用其他帳號
